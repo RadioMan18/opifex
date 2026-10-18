@@ -441,9 +441,10 @@ Your job:
   "outputs": ["output1", "output2"]
 }
 
-2. Return ONLY the JSON object, no markdown code blocks, no explanation text, no prose before or after
+ 2. Return ONLY a raw JSON object — no markdown code blocks, no explanation, no prose before or after
 3. Update the plan incrementally based on the conversation — don't repeat the same plan unless nothing changed
 4. Be helpful, concise, and professional
+5. Ensure valid JSON syntax — double-quoted keys and string values only
 
 The user sees the plan on the right side of the screen updating in real-time. Make each turn count.`;
     }
@@ -648,6 +649,9 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
         cleaned = cleaned.substring(firstBrace, lastBrace + 1);
       }
 
+      // Remove any trailing commas before } or ] (common LLM mistake)
+      cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+
       const plan = JSON.parse(cleaned) as AgentPlan;
       msg.turnPlanJson = plan;
       state.currentPlan = plan;
@@ -677,7 +681,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
         }).catch(() => {});
       }
     } catch {
-      state.buildError = "Oppy returned a response but it wasn't in valid JSON format. You can retry or continue the interview.";
+      state.buildError = "Oppy returned a response but it wasn't valid JSON. Try qwen3-coder:30b or llama3.2 for better JSON output. You can retry or continue the interview.";
       state.rawStreamingContent = streamingContent;
       if (state.currentConversationId) {
         ipcSaveMessage({
