@@ -636,7 +636,19 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     }
 
     try {
-      const plan = JSON.parse(streamingContent) as AgentPlan;
+      // Strip markdown code block fences if present
+      let cleaned = streamingContent.trim();
+      // Remove ```json ... ``` or ``` ... ``` wrappers
+      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
+
+      // Try to find JSON object within the text (between first { and last })
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+      }
+
+      const plan = JSON.parse(cleaned) as AgentPlan;
       msg.turnPlanJson = plan;
       state.currentPlan = plan;
 
@@ -665,7 +677,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
         }).catch(() => {});
       }
     } catch {
-      state.buildError = "Oppy returned a response but it wasn't in the expected JSON format. You can retry or continue the interview.";
+      state.buildError = "Oppy returned a response but it wasn't in valid JSON format. You can retry or continue the interview.";
       state.rawStreamingContent = streamingContent;
       if (state.currentConversationId) {
         ipcSaveMessage({
