@@ -120,6 +120,31 @@ async function handleSaveVersion() {
   const label = newVersionLabel.value.trim() || undefined;
   await savePlanVersion(label);
   newVersionLabel.value = '';
+
+  // Download the current plan as a JSON file
+  if (currentAgent.value && currentPlan.value) {
+    const planExport = {
+      agentId: currentAgent.value.id,
+      agentName: currentAgent.value.name,
+      label: label || 'Untitled version',
+      plan: currentPlan.value,
+      exportedAt: new Date().toISOString(),
+    };
+    const json = JSON.stringify(planExport, null, 2);
+    const fileName = prompt('Save plan version as:', `${currentAgent.value.name || 'agent'}-plan.json`);
+    if (fileName) {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+
   // Reload versions for current agent
   if (currentAgent.value) {
     await loadPlanVersions(currentAgent.value.id);
