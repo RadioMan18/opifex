@@ -1,0 +1,31 @@
+{
+  "name": "opifex",
+  "productName": "Opifex",
+  "version": "1.0.0",
+  "description": "Opifex - Agent Builder for businesses",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "generate-icons": "node scripts/generate-icons.js --tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/tsconfig": "^0.7.0",
+    "happy-dom": "^21.0.3",
+    "png-to-ico": "^3.0.2",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.35.5",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^2.2.0"
+  }
+}
