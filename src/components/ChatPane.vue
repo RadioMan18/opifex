@@ -340,7 +340,7 @@ function formatTime(iso: string): string {
 
 .streaming-indicator {
   color: #0066cc;
-  animation: pulse 1.5s infinite;
+  animation: dots 1.5s infinite;
   font-size: 0.7rem;
 }
 

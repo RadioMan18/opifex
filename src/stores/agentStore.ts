@@ -4,7 +4,6 @@ import type {
   AgentListItem,
   AgentPlan,
   Conversation,
-  DbMessage,
   Message,
   OllamaModel,
   OllamaMessage,
@@ -33,7 +32,6 @@ import {
   createConversation as ipcCreateConversation,
   listConversations as ipcListConversations,
   saveMessage as ipcSaveMessage,
-  loadMessages as ipcLoadMessages,
   savePlanVersion as ipcSavePlanVersion,
   listPlanVersions as ipcListPlanVersions,
   restorePlanVersion as ipcRestorePlanVersion,
@@ -86,16 +84,6 @@ const isInitialized = ref(false);
 let streamingMessageId: string | null = null;
 let streamingContent = '';
 let streamUnlistens: (() => void)[] = [];
-
-function dbMessageToMessage(dbMsg: DbMessage): Message {
-  return {
-    id: dbMsg.id,
-    role: dbMsg.role as 'user' | 'assistant' | 'system',
-    content: dbMsg.content,
-    turnPlanJson: dbMsg.turnPlanJson,
-    createdAt: dbMsg.createdAt,
-  };
-}
 
 export function useAgentStore() {
   async function init() {
@@ -205,18 +193,11 @@ export function useAgentStore() {
       state.currentAgent = await ipcGetAgent(id);
       state.currentPlan = state.currentAgent?.specJson ?? null;
 
+      // Always start fresh — don't load old conversations automatically.
+      // Conversation history can be loaded explicitly if the user chooses a previous conversation.
       state.conversations = await ipcListConversations(id);
-
-      const latest = state.conversations[0];
-      if (latest) {
-        state.currentConversationId = latest.id;
-        const dbMessages = await ipcLoadMessages(latest.id);
-        state.messages = dbMessages.map(dbMessageToMessage);
-      } else {
-        state.currentConversationId = null;
-        state.messages = [];
-      }
-
+      state.currentConversationId = null;
+      state.messages = [];
       state.planVersions = await ipcListPlanVersions(id);
       state.interviewing = true;
       state.buildError = null;
