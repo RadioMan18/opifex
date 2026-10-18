@@ -8,15 +8,21 @@ const props = defineProps({
   streaming: { type: Boolean, required: true },
   streamingMsgId: { type: String, required: true },
   currentAgentName: { type: String, required: false, default: '' },
+  interviewing: { type: Boolean, required: false, default: false },
   onSend: { type: Function as PropType<(content: string) => void>, required: true },
 });
 
+const emit = defineEmits(['build']);
 const newMessage = ref('');
 
 async function handleSend() {
   if (!newMessage.value.trim()) return;
   props.onSend(newMessage.value);
   newMessage.value = '';
+}
+
+async function handleBuild() {
+  emit('build');
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -38,8 +44,13 @@ function formatTime(iso: string): string {
         <span class="chat-icon">🤖</span>
         <div>
           <h2>{{ currentAgentName || 'Oppy' }}</h2>
-          <div class="chat-subtitle">{{ currentAgentName ? 'Building agent' : 'Select an agent to begin' }}</div>
+          <div class="chat-subtitle">
+            {{ interviewing ? 'Interview mode — Oppy is asking questions' : 'Building agent' }}
+          </div>
         </div>
+      </div>
+      <div class="chat-actions">
+        <button v-if="interviewing" class="btn-build" @click="handleBuild">Build Agent</button>
       </div>
     </div>
 
@@ -124,6 +135,21 @@ function formatTime(iso: string): string {
 
 .chat-actions {
   margin-left: auto;
+}
+
+.btn-build {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-build:hover {
+  background: #059669;
 }
 
 .model-select {

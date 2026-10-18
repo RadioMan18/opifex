@@ -54,6 +54,7 @@ interface AgentState {
   loading: boolean;
   streaming: boolean;
   streamingMsgId: string | null;
+  interviewing: boolean;
   error: string | null;
 }
 
@@ -72,6 +73,7 @@ const state = reactive<AgentState>({
   loading: false,
   streaming: false,
   streamingMsgId: null,
+  interviewing: true,
   error: null,
 });
 
@@ -212,6 +214,7 @@ export function useAgentStore() {
       }
 
       state.planVersions = await ipcListPlanVersions(id);
+      state.interviewing = true;
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
@@ -259,6 +262,7 @@ export function useAgentStore() {
       state.conversations = [];
       state.currentConversationId = null;
       state.planVersions = [];
+      state.interviewing = true;
       await loadAgents();
       return agent;
     } catch (err: any) {
@@ -411,16 +415,34 @@ export function useAgentStore() {
       ? JSON.stringify(state.currentPlan, null, 2)
       : '{}';
 
-    return `You are Oppy, an expert AI agent builder for Opifex. You help users design AI agents for business use through conversation.
+    if (state.interviewing) {
+      return `You are Oppy, an expert AI agent builder for Opifex.
+
+Current agent: "${agentName}"
+Current plan (JSON): ${currentPlan}
+
+INTERVIEW MODE: You are interviewing the user to understand what they want their agent to do.
+
+Your job:
+1. Have a natural conversation and ask clarifying questions about the agent's goal, steps, tools, knowledge sources, triggers, and outputs
+2. Ask questions one at a time or in small related batches — don't overwhelm the user
+3. Be helpful, concise, and professional
+4. Do NOT produce any JSON plan yet — we are still in the interview phase
+5. When you have enough information to build a complete plan, ask: "Should I build this agent now?"
+6. Wait for the user to confirm before switching to plan generation mode
+
+The user sees your messages on the left side of the screen. The plan panel on the right will remain empty until the interview is complete.`;
+    } else {
+      return `You are Oppy, an expert AI agent builder for Opifex. You help users design AI agents for business use through conversation.
 
 Current agent: "${agentName}"
 Current plan (JSON):
 ${currentPlan}
 
+PLAN MODE: The interview is complete. Your job is to produce and refine a structured agent plan.
+
 Your job:
-1. Have a natural conversation with the user about what they want their agent to do
-2. Ask clarifying questions to understand the goal, steps, tools, triggers, and outputs
-3. After every turn, produce a COMPLETE updated plan as a JSON object in this exact format:
+1. Produce a COMPLETE updated plan as a JSON object in this exact format:
 {
   "goal": "string - what the agent accomplishes",
   "steps": ["step 1", "step 2", "step 3"],
@@ -430,11 +452,93 @@ Your job:
   "outputs": ["output1", "output2"]
 }
 
-4. Return ONLY the JSON object, no markdown code blocks, no explanation text, no prose before or after
-5. Update the plan incrementally based on the conversation - don't repeat the same plan unless nothing changed
-6. Be helpful, concise, and professional
+2. Return ONLY the JSON object, no markdown code blocks, no explanation text, no prose before or after
+3. Update the plan incrementally based on the conversation — don't repeat the same plan unless nothing changed
+4. Be helpful, concise, and professional
 
 The user sees the plan on the right side of the screen updating in real-time. Make each turn count.`;
+    }
+  }
+
+  async function confirmBuild() {
+    if (!state.currentAgent) return;
+    state.interviewing = false;
+
+    const buildMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: 'Please generate the complete agent plan now based on our conversation.',
+      turnPlanJson: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(buildMessage);
+
+    try {
+      await ipcSaveMessage({
+        conversationId: state.currentConversationId!,
+        role: 'user',
+        content: buildMessage.content,
+        turnPlanJson: null,
+      });
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+    }
+
+    const provider = state.provider ?? 'ollama';
+    const model = state.currentAgent.model;
+    const apiKey = state.apiKeys[provider] ?? null;
+    const systemPrompt = buildSystemPrompt();
+
+    const ollamaMessages: OllamaMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...state.messages.map(m => ({ role: m.role, content: m.content })),
+    ];
+
+    state.streaming = true;
+    state.error = null;
+
+    streamingMessageId = crypto.randomUUID();
+    state.streamingMsgId = streamingMessageId;
+    streamingContent = '';
+    const assistantMessage: Message = {
+      id: streamingMessageId,
+      role: 'assistant',
+      content: '',
+      turnPlanJson: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(assistantMessage);
+
+    try {
+      const unlistens = await ipcOllamaChatStream(
+        provider,
+        model,
+        apiKey,
+        ollamaMessages,
+        {
+          onChunk: (chunk: string) => {
+            streamingContent += chunk;
+            const msg = state.messages.find(m => m.id === streamingMessageId);
+            if (msg) {
+              msg.content = streamingContent;
+            }
+          },
+          onEnd: () => {
+            handleStreamEnd(streamingMessageId!);
+          },
+          onError: (err: string) => {
+            state.streaming = false;
+            state.error = err;
+            cleanupStream();
+          },
+        },
+      );
+      streamUnlistens = unlistens;
+    } catch (err: any) {
+      state.streaming = false;
+      state.error = err?.message || String(err);
+      cleanupStream();
+    }
   }
 
   function handleStreamEnd(messageId: string) {
@@ -614,6 +718,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     createNewAgent,
     createNewConversation,
     sendMessage,
+    confirmBuild,
     updatePlanField,
     savePlanVersion,
     loadPlanVersions,

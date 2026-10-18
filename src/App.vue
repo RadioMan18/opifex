@@ -14,6 +14,7 @@ const {
   selectAgent,
   createNewAgent,
   sendMessage,
+  confirmBuild,
   updatePlanField,
   deleteCurrentAgent,
   pullModel,
@@ -56,6 +57,7 @@ const error = computed(() => state.error);
 const provider = computed(() => state.provider);
 const apiKeys = computed(() => state.apiKeys);
 const planVersions = computed(() => state.planVersions);
+const interviewing = computed(() => state.interviewing);
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -80,6 +82,16 @@ async function handleCreateAgent() {
 async function handleDeleteAgent(id: string) {
   if (!confirm(`Delete agent "${id}"?`)) return;
   await deleteCurrentAgent();
+}
+
+async function goHome() {
+  state.currentAgent = null;
+  state.currentPlan = null;
+  state.messages = [];
+  state.conversations = [];
+  state.currentConversationId = null;
+  state.planVersions = [];
+  state.interviewing = true;
 }
 
 async function handlePullModel(modelName: string) {
@@ -122,15 +134,18 @@ async function handleRestoreVersion(versionId: string) {
 async function handleExportAgent(id: string) {
   try {
     const json = await exportAgent(id);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'opifex-agent.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const fileName = prompt('Save agent as:', `${currentAgent.value?.name || 'agent'}.json`);
+    if (fileName) {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   } catch (err: any) {
     state.error = err?.message || String(err);
   }
@@ -208,6 +223,14 @@ async function handleDuplicateAgent(id: string) {
 
         <button class="btn-import" @click="showImportDialog = true" title="Import agent">⬆</button>
         <button class="btn-new" @click="showCreateDialog = true" title="New agent">+ Agent</button>
+        <button
+          v-if="currentAgent"
+          class="btn-home"
+          @click="goHome"
+          title="Return to library"
+        >
+          ↥ Home
+        </button>
       </div>
     </div>
 
@@ -220,7 +243,9 @@ async function handleDuplicateAgent(id: string) {
           :streaming="streaming"
           :streaming-msg-id="streamingMsgId ?? ''"
           :current-agent-name="currentAgent?.name ?? ''"
+          :interviewing="interviewing"
           @send="handleSendMessage"
+          @build="confirmBuild"
         />
 
         <AgentLibrary
@@ -647,5 +672,20 @@ async function handleDuplicateAgent(id: string) {
 }
 .btn-new:hover {
   background: #0052a3;
+}
+
+.btn-home {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-home:hover {
+  background: #e5e7eb;
 }
 </style>
