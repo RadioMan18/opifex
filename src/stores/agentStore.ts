@@ -55,6 +55,8 @@ interface AgentState {
   streaming: boolean;
   streamingMsgId: string | null;
   interviewing: boolean;
+  buildError: string | null;
+  rawStreamingContent: string | null;
   error: string | null;
 }
 
@@ -74,6 +76,8 @@ const state = reactive<AgentState>({
   streaming: false,
   streamingMsgId: null,
   interviewing: true,
+  buildError: null,
+  rawStreamingContent: null,
   error: null,
 });
 
@@ -215,6 +219,8 @@ export function useAgentStore() {
 
       state.planVersions = await ipcListPlanVersions(id);
       state.interviewing = true;
+      state.buildError = null;
+      state.rawStreamingContent = null;
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
@@ -263,6 +269,8 @@ export function useAgentStore() {
       state.currentConversationId = null;
       state.planVersions = [];
       state.interviewing = true;
+      state.buildError = null;
+      state.rawStreamingContent = null;
       await loadAgents();
       return agent;
     } catch (err: any) {
@@ -463,6 +471,97 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
   async function confirmBuild() {
     if (!state.currentAgent) return;
     state.interviewing = false;
+    state.buildError = null;
+    state.rawStreamingContent = null;
+
+    const buildMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: 'Please generate the complete agent plan now based on our conversation.',
+      turnPlanJson: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(buildMessage);
+
+    try {
+      await ipcSaveMessage({
+        conversationId: state.currentConversationId!,
+        role: 'user',
+        content: buildMessage.content,
+        turnPlanJson: null,
+      });
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+    }
+
+    const provider = state.provider ?? 'ollama';
+    const model = state.currentAgent.model;
+    const apiKey = state.apiKeys[provider] ?? null;
+    const systemPrompt = buildSystemPrompt();
+
+    const ollamaMessages: OllamaMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...state.messages.map(m => ({ role: m.role, content: m.content })),
+    ];
+
+    state.streaming = true;
+    state.error = null;
+
+    streamingMessageId = crypto.randomUUID();
+    state.streamingMsgId = streamingMessageId;
+    streamingContent = '';
+    const assistantMessage: Message = {
+      id: streamingMessageId,
+      role: 'assistant',
+      content: '',
+      turnPlanJson: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.messages.push(assistantMessage);
+
+    try {
+      const unlistens = await ipcOllamaChatStream(
+        provider,
+        model,
+        apiKey,
+        ollamaMessages,
+        {
+          onChunk: (chunk: string) => {
+            streamingContent += chunk;
+            const msg = state.messages.find(m => m.id === streamingMessageId);
+            if (msg) {
+              msg.content = streamingContent;
+            }
+          },
+          onEnd: () => {
+            handleStreamEnd(streamingMessageId!);
+          },
+          onError: (err: string) => {
+            state.streaming = false;
+            state.error = err;
+            cleanupStream();
+          },
+        },
+      );
+      streamUnlistens = unlistens;
+    } catch (err: any) {
+      state.streaming = false;
+      state.error = err?.message || String(err);
+      cleanupStream();
+    }
+  }
+
+  async function retryBuild() {
+    if (!state.currentAgent) return;
+    state.buildError = null;
+    state.rawStreamingContent = null;
+    state.interviewing = false;
+
+    // Remove the last failed assistant message if it exists
+    const lastMsg = state.messages[state.messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.id === streamingMessageId) {
+      state.messages = state.messages.slice(0, -1);
+    }
 
     const buildMessage: Message = {
       id: crypto.randomUUID(),
@@ -551,7 +650,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
 
     // If no content was streamed, show an error instead of trying to parse
     if (!streamingContent || streamingContent.trim().length === 0) {
-      state.error = "Oppy didn't return a response. Try again or check if Ollama is running.";
+      state.buildError = "Oppy didn't return a response. Click Retry to try again.";
       return;
     }
 
@@ -585,7 +684,8 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
         }).catch(() => {});
       }
     } catch {
-      state.error = "Oppy returned a response but it wasn't in the expected format. Try rephrasing.";
+      state.buildError = "Oppy returned a response but it wasn't in the expected JSON format. You can retry or continue the interview.";
+      state.rawStreamingContent = streamingContent;
       if (state.currentConversationId) {
         ipcSaveMessage({
           conversationId: state.currentConversationId,
@@ -719,6 +819,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     createNewConversation,
     sendMessage,
     confirmBuild,
+    retryBuild,
     updatePlanField,
     savePlanVersion,
     loadPlanVersions,

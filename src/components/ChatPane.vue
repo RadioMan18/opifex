@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { PropType } from 'vue';
 import type { Message } from '@/types/agent';
 
@@ -9,11 +9,36 @@ const props = defineProps({
   streamingMsgId: { type: String, required: true },
   currentAgentName: { type: String, required: false, default: '' },
   interviewing: { type: Boolean, required: false, default: false },
+  buildError: { type: [String] as PropType<string | null>, required: false, default: null },
   onSend: { type: Function as PropType<(content: string) => void>, required: true },
 });
 
-const emit = defineEmits(['build']);
+const emit = defineEmits(['build', 'retry']);
 const newMessage = ref('');
+const dots = ref('');
+
+let dotsInterval: ReturnType<typeof setInterval> | null = null;
+
+function startDots() {
+  let count = 0;
+  dotsInterval = setInterval(() => {
+    count = (count + 1) % 4;
+    dots.value = '.'.repeat(count);
+  }, 400);
+}
+
+function stopDots() {
+  if (dotsInterval) {
+    clearInterval(dotsInterval);
+    dotsInterval = null;
+  }
+  dots.value = '';
+}
+
+watch(() => props.streaming, (streaming) => {
+  if (streaming) startDots();
+  else stopDots();
+});
 
 async function handleSend() {
   if (!newMessage.value.trim()) return;
@@ -23,6 +48,10 @@ async function handleSend() {
 
 async function handleBuild() {
   emit('build');
+}
+
+async function handleRetry() {
+  emit('retry');
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -51,6 +80,8 @@ function formatTime(iso: string): string {
       </div>
       <div class="chat-actions">
         <button v-if="interviewing" class="btn-build" @click="handleBuild">Build Agent</button>
+        <button v-if="!interviewing && buildError" class="btn-retry" @click="handleRetry">Retry</button>
+        <span v-if="!interviewing && buildError" class="build-error">{{ buildError }}</span>
       </div>
     </div>
 
@@ -76,7 +107,7 @@ function formatTime(iso: string): string {
           <div class="message-meta">
             <span class="message-role">{{ msg.role === 'user' ? 'You' : 'Oppy' }}</span>
             <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
-            <span v-if="streaming && msg.id === streamingMsgId" class="streaming-indicator">● typing</span>
+            <span v-if="streaming && msg.id === streamingMsgId" class="streaming-indicator">Oppy{{ dots }}</span>
           </div>
         </div>
       </div>
@@ -150,6 +181,31 @@ function formatTime(iso: string): string {
 
 .btn-build:hover {
   background: #059669;
+}
+
+.btn-retry {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-retry:hover {
+  background: #b91c1c;
+}
+
+.build-error {
+  font-size: 0.8rem;
+  color: #dc2626;
+  margin-left: 0.75rem;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-select {
@@ -286,6 +342,14 @@ function formatTime(iso: string): string {
   color: #0066cc;
   animation: pulse 1.5s infinite;
   font-size: 0.7rem;
+}
+
+@keyframes dots {
+  0%, 20% { color: #0066cc; opacity: 1; }
+  40% { opacity: 0.4; }
+  60% { opacity: 1; }
+  80% { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 
 .chat-input-area {

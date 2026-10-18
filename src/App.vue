@@ -15,6 +15,7 @@ const {
   createNewAgent,
   sendMessage,
   confirmBuild,
+  retryBuild,
   updatePlanField,
   deleteCurrentAgent,
   pullModel,
@@ -58,6 +59,7 @@ const provider = computed(() => state.provider);
 const apiKeys = computed(() => state.apiKeys);
 const planVersions = computed(() => state.planVersions);
 const interviewing = computed(() => state.interviewing);
+const buildError = computed(() => state.buildError);
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -244,8 +246,10 @@ async function handleDuplicateAgent(id: string) {
           :streaming-msg-id="streamingMsgId ?? ''"
           :current-agent-name="currentAgent?.name ?? ''"
           :interviewing="interviewing"
+          :build-error="buildError"
           @send="handleSendMessage"
           @build="confirmBuild"
+          @retry="retryBuild"
         />
 
         <AgentLibrary
