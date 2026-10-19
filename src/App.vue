@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
+import { save as tauriSaveDialog } from '@tauri-apps/plugin-dialog';
 import { useAgentStore } from '@/stores/agentStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
+import { writeFile as ipcWriteFile } from '@/services/ipc';
 import type { AgentPlan } from '@/types/agent';
 
 const store = useAgentStore();
@@ -13,6 +15,7 @@ const {
   init,
   selectAgent,
   createNewAgent,
+  createNewConversation,
   sendMessage,
   confirmBuild,
   retryBuild,
@@ -34,7 +37,6 @@ const {
 const newAgentName = ref('');
 const newAgentDescription = ref('');
 const showCreateDialog = ref(false);
-const streamingMsgId = ref<string | null>(null);
 const showImportDialog = ref(false);
 const importJson = ref('');
 const showRenameDialog = ref(false);
@@ -54,6 +56,7 @@ const models = computed(() => state.models);
 const defaultModel = computed(() => state.defaultModel);
 const loading = computed(() => state.loading);
 const streaming = computed(() => state.streaming);
+const streamingMsgId = computed(() => state.streamingMsgId);
 const error = computed(() => state.error);
 const provider = computed(() => state.provider);
 const apiKeys = computed(() => state.apiKeys);
@@ -67,6 +70,12 @@ async function handleSelectAgent(id: string) {
 
 async function handleSendMessage(content: string) {
   await sendMessage(content);
+}
+
+async function handleNewConversation() {
+  if (currentAgent.value) {
+    await createNewConversation();
+  }
 }
 
 async function handleCreateAgent() {
@@ -121,7 +130,7 @@ async function handleSaveVersion() {
   await savePlanVersion(label);
   newVersionLabel.value = '';
 
-  // Download the current plan as a JSON file
+  // Open native Windows Save dialog
   if (currentAgent.value && currentPlan.value) {
     const planExport = {
       agentId: currentAgent.value.id,
@@ -131,17 +140,17 @@ async function handleSaveVersion() {
       exportedAt: new Date().toISOString(),
     };
     const json = JSON.stringify(planExport, null, 2);
-    const fileName = prompt('Save plan version as:', `${currentAgent.value.name || 'agent'}-plan.json`);
-    if (fileName) {
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const defaultName = `${currentAgent.value.name || 'agent'}-plan.json`;
+    const filePath = await tauriSaveDialog({
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (filePath) {
+      try {
+        await ipcWriteFile(filePath, json);
+      } catch (err: any) {
+        state.error = err?.message || String(err);
+      }
     }
   }
 
@@ -161,17 +170,13 @@ async function handleRestoreVersion(versionId: string) {
 async function handleExportAgent(id: string) {
   try {
     const json = await exportAgent(id);
-    const fileName = prompt('Save agent as:', `${currentAgent.value?.name || 'agent'}.json`);
-    if (fileName) {
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const defaultName = `${currentAgent.value?.name || 'agent'}.json`;
+    const filePath = await tauriSaveDialog({
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (filePath) {
+      await ipcWriteFile(filePath, json);
     }
   } catch (err: any) {
     state.error = err?.message || String(err);
@@ -252,6 +257,14 @@ async function handleDuplicateAgent(id: string) {
         <button class="btn-new" @click="showCreateDialog = true" title="New agent">+ Agent</button>
         <button
           v-if="currentAgent"
+          class="btn-save-agent-header"
+          @click="handleExportAgent(currentAgent.id)"
+          title="Save agent with Windows Save dialog"
+        >
+          💾 Save Agent
+        </button>
+        <button
+          v-if="currentAgent"
           class="btn-home"
           @click="goHome"
           title="Return to library"
@@ -275,6 +288,7 @@ async function handleDuplicateAgent(id: string) {
           @send="handleSendMessage"
           @build="confirmBuild"
           @retry="retryBuild"
+          @new-conversation="handleNewConversation"
         />
 
         <AgentLibrary
@@ -298,6 +312,7 @@ async function handleDuplicateAgent(id: string) {
         @update="handlePlanUpdate"
         @save-version="handleSaveVersion"
         @restore-version="handleRestoreVersion"
+        @export-agent="() => currentAgent && handleExportAgent(currentAgent.id)"
       />
     </div>
 
@@ -703,6 +718,23 @@ async function handleDuplicateAgent(id: string) {
   background: #0052a3;
 }
 
+.btn-save-agent-header {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.btn-save-agent-header:hover {
+  background: #059669;
+}
+
 .btn-home {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -713,7 +745,6 @@ async function handleDuplicateAgent(id: string) {
   cursor: pointer;
   font-weight: 500;
 }
-
 .btn-home:hover {
   background: #e5e7eb;
 }

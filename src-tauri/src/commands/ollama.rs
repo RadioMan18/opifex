@@ -224,6 +224,31 @@ async fn ollama_chat_stream_impl(
         .json(&serde_json::json!({
             "model": model,
             "messages": messages,
+            "format": {
+                "type": "object",
+                "properties": {
+                    "response": { "type": "string" },
+                    "plan": {
+                        "type": "object",
+                        "properties": {
+                            "goal": { "type": "string" },
+                            "steps": { "type": "array", "items": { "type": "string" } },
+                            "tools": { "type": "array", "items": { "type": "string" } },
+                            "knowledgeSources": { "type": "array", "items": { "type": "string" } },
+                            "triggers": { "type": "array", "items": { "type": "string" } },
+                            "outputs": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": ["goal", "steps", "tools", "knowledgeSources", "triggers", "outputs"],
+                        "additionalProperties": false
+                    }
+                },
+                "required": ["response", "plan"],
+                "additionalProperties": false
+            },
+            "options": {
+                "temperature": 0,
+                "repeat_penalty": 1.2
+            },
             "stream": true
         }))
         .send()

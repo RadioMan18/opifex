@@ -223,60 +223,94 @@ pub fn seed_starter_agents(state: State<'_, DbState>) -> Result<Vec<String>, Str
             "Customer Support Agent",
             "Answers customer inquiries and handles support tickets, grounded in company FAQ and product documentation.",
             serde_json::json!({
-                "goal": "Provide helpful, accurate customer support by resolving inquiries and managing support tickets",
-                "steps": ["Greet customer", "Understand the issue", "Search knowledge base for relevant answers", "Provide solution or escalate", "Follow up and confirm resolution"],
-                "tools": ["knowledge_base", "ticket_system", "customer_database"],
+                "goal": "Resolve customer inquiries and support tickets within SLAs, grounding all answers in approved FAQs and product documentation",
+                "steps": [
+                    "Parse incoming customer message to classify inquiry type, urgency, and affected product area",
+                    "Query customer database for account status, subscription tier, and recent ticket history",
+                    "Search knowledge base (faq.md, product_docs.pdf) for verified solution steps matching the issue",
+                    "If a high-confidence match is found, compose a courteous response with clear step-by-step instructions",
+                    "If no verified solution exists or account requires billing changes, open an escalated support ticket with structured summary",
+                    "Log resolution details and send a closing confirmation asking if additional assistance is needed"
+                ],
+                "tools": ["knowledge_base_search", "ticket_system_api", "customer_crm"],
                 "knowledgeSources": ["faq.md", "product_docs.pdf", "support_runbooks.md"],
                 "triggers": ["customer_message", "new_support_ticket", "escalation_request"],
-                "outputs": ["customer_response", "support_ticket", "escalation_notice"]
+                "outputs": ["customer_response_email", "support_ticket_record", "escalation_summary"]
             }),
         ),
         (
             "Research Agent",
             "Conducts web research and produces structured reports with citations on any business topic.",
             serde_json::json!({
-                "goal": "Research a topic thoroughly and produce a structured, cited report",
-                "steps": ["Clarify research scope and questions", "Perform web searches across multiple sources", "Extract and verify key facts", "Synthesize findings into a structured report", "Add citations and source links"],
+                "goal": "Conduct comprehensive web and repository research on specified technology/business topics and generate a ranked, cited comparison report",
+                "steps": [
+                    "Clarify research topic, inclusion/exclusion criteria, and target time horizon",
+                    "Execute structured search queries across technical repositories and discussion platforms",
+                    "Filter candidates against defined constraints (e.g. active maintenance, open source license, minimum popularity threshold)",
+                    "Gather quantitative metrics (stars, downloads, activity) and qualitative feedback (sentiment, common complaints)",
+                    "Calculate a composite ranking score based on defined weights (e.g. 60% adoption/stars, 40% community sentiment)",
+                    "Compile a Markdown report featuring an executive summary, ranked comparison table, pros/cons breakdown, and source citation links"
+                ],
                 "tools": ["web_search", "document_summarizer", "citation_formatter"],
-                "knowledgeSources": [],
+                "knowledgeSources": ["github_repositories", "community_discussions", "technical_documentation"],
                 "triggers": ["research_request", "market_analysis_request", "competitor_research_request"],
-                "outputs": ["research_report", "source_citations", "key_findings_summary"]
+                "outputs": ["executive_summary", "ranked_comparison_table", "source_citations_with_urls"]
             }),
         ),
         (
             "RAG Knowledge Agent",
             "Answers questions by searching and reasoning over the company's internal knowledge base and documents.",
             serde_json::json!({
-                "goal": "Answer employee questions accurately using internal company documents and knowledge base",
-                "steps": ["Receive user question", "Search internal knowledge base for relevant documents", "Retrieve and rank most relevant passages", "Synthesize answer grounded in retrieved sources", "Provide answer with source references"],
-                "tools": ["document_search", "semantic_search", "qa_over_docs"],
+                "goal": "Deliver grounded, accurate answers to internal company policy and technical questions by retrieving and synthesizing verified document passages",
+                "steps": [
+                    "Analyze user query to identify key concepts, target domain, and user department",
+                    "Perform hybrid search (dense semantic + keyword BM25) across internal company documents",
+                    "Rerank retrieved passages and select top matching chunks with similarity score >= 0.75",
+                    "Synthesize a concise answer strictly grounded in selected passages, explicitly citing document name and section",
+                    "If information is missing or below confidence threshold, state limitations and refer user to responsible department"
+                ],
+                "tools": ["semantic_search", "hybrid_reranker", "passage_extractor"],
                 "knowledgeSources": ["company_handbook.pdf", "policy_documents.md", "technical_docs.md", "onboarding_guide.md"],
                 "triggers": ["employee_question", "policy_lookup", "procedure_inquiry"],
-                "outputs": ["answered_question", "source_references", "confidence_score"]
+                "outputs": ["grounded_answer", "source_citations_with_sections", "confidence_score"]
             }),
         ),
         (
             "Code Review Agent",
             "Reviews pull requests, identifies issues, suggests fixes, and recommends approval or changes.",
             serde_json::json!({
-                "goal": "Improve code quality by reviewing pull requests and providing actionable feedback",
-                "steps": ["Review pull request code changes", "Identify bugs, security issues, and style violations", "Suggest specific code fixes and improvements", "Check test coverage and documentation", "Recommend approve, request changes, or comment"],
+                "goal": "Automate thorough pull request reviews by detecting bugs, security vulnerabilities, style deviations, and test coverage gaps",
+                "steps": [
+                    "Fetch pull request diff, modified files list, and PR description from git repository",
+                    "Run static analysis and linter against changed files to detect syntax, type, and style issues",
+                    "Analyze changes for potential security risks (e.g. injection, credential leaks, unvalidated inputs) and performance regressions",
+                    "Verify that new or modified logic is covered by unit/integration tests and matches team coding standards",
+                    "Generate inline review comments with concrete diff-style fix recommendations and explain the rationale",
+                    "Issue an overall review verdict (Approve, Request Changes, or Comment) with categorized severity breakdown"
+                ],
                 "tools": ["linter", "static_analyzer", "test_runner", "github_api"],
                 "knowledgeSources": ["coding_standards.md", "security_guidelines.md", "review_checklist.md"],
                 "triggers": ["pull_request_opened", "pull_request_updated", "code_review_request"],
-                "outputs": ["review_comments", "approval_status", "suggested_changes", "severity_flags"]
+                "outputs": ["inline_review_comments", "review_summary_markdown", "approval_verdict", "severity_breakdown"]
             }),
         ),
         (
             "Content Writer Agent",
             "Drafts on-brand internal and external communications including announcements, newsletters, and press releases.",
             serde_json::json!({
-                "goal": "Write engaging, on-brand content for internal and external audiences",
-                "steps": ["Understand content objective and target audience", "Research key messages and brand guidelines", "Draft outline and structure", "Write and refine content", "Review against brand voice and style guide"],
+                "goal": "Draft polished, on-brand internal and external communications tailored to specified audience, tone, and strategic objectives",
+                "steps": [
+                    "Analyze content brief to extract target audience, primary call-to-action, core message, and publication channel",
+                    "Retrieve relevant messaging guidelines, tone specifications, and successful prior campaign examples",
+                    "Develop a structured outline featuring an engaging hook, structured body arguments, and clear call-to-action",
+                    "Draft full content adhering strictly to brand voice rules (avoid jargon, maintain active voice, target reading level)",
+                    "Run readability and brand compliance checks; refine phrasing for punchiness and clarity",
+                    "Output the complete copy along with 3 headline/subject line variations and recommended metadata tags"
+                ],
                 "tools": ["grammar_checker", "brand_voice_checker", "word_counter", "readability_analyzer"],
                 "knowledgeSources": ["brand_voice_guide.md", "style_guide.md", "previous_campaigns.md", "messaging_framework.md"],
                 "triggers": ["content_request", "newsletter_request", "press_release_request", "announcement_request"],
-                "outputs": ["content_draft", "final_copy", "headline_options", "call_to_action_suggestions"]
+                "outputs": ["final_content_copy", "headline_variations", "call_to_action_options", "readability_score"]
             }),
         ),
     ];

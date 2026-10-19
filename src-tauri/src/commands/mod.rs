@@ -1,5 +1,6 @@
 mod agent;
 mod conversation;
+mod files;
 mod ollama;
 mod plan;
 
@@ -16,6 +17,7 @@ pub use ollama::{
     ollama_get_api_key, ollama_set_api_key,
 };
 pub use plan::{save_plan_version, list_plan_versions, restore_plan_version};
+pub use files::write_file;
 pub use agent::{Agent, AgentListItem, CreateAgentInput, UpdateAgentInput};
 pub use conversation::{Conversation, Message as DbMessage, SaveMessageInput};
 pub use ollama::{OllamaChatInput, OllamaChatOutput, OllamaMessage, OllamaModel, LlmProvider};

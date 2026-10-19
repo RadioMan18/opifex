@@ -79,37 +79,73 @@ export interface OllamaStreamCallbacks {
   onError: (error: string) => void;
 }
 
+export type StreamCleanup = () => void;
+
 export async function ollamaChatStream(
   provider: string,
   model: string,
   apiKey: string | null,
   messages: OllamaMessage[],
   callbacks: OllamaStreamCallbacks,
-): Promise<UnlistenFn[]> {
+): Promise<StreamCleanup> {
+  let isDone = false;
   const unlistens: UnlistenFn[] = [];
 
+  const cleanup: StreamCleanup = () => {
+    if (isDone) return;
+    isDone = true;
+    while (unlistens.length > 0) {
+      const u = unlistens.pop();
+      try {
+        u?.();
+      } catch {}
+    }
+  };
+
   const chunkUnlisten = await listen<{ content: string }>('ollama-stream-chunk', (event) => {
-    callbacks.onChunk(event.payload.content);
+    if (!isDone) {
+      callbacks.onChunk(event.payload.content);
+    }
   });
-  unlistens.push(chunkUnlisten);
-
-  const endUnlisten = await listen<{}>('ollama-stream-end', () => {
-    callbacks.onEnd();
-  });
-  unlistens.push(endUnlisten);
-
-  const errorUnlisten = await listen<{ error: string }>('ollama-stream-error', (event) => {
-    callbacks.onError(event.payload.error);
-  });
-  unlistens.push(errorUnlisten);
-
-  try {
-    await invoke('ollama_chat_stream', { provider, model, apiKey, messages });
-  } catch (err: any) {
-    callbacks.onError(err?.message || String(err));
+  if (isDone) {
+    chunkUnlisten();
+  } else {
+    unlistens.push(chunkUnlisten);
   }
 
-  return unlistens;
+  const endUnlisten = await listen<{}>('ollama-stream-end', () => {
+    if (!isDone) {
+      cleanup();
+      callbacks.onEnd();
+    }
+  });
+  if (isDone) {
+    endUnlisten();
+  } else {
+    unlistens.push(endUnlisten);
+  }
+
+  const errorUnlisten = await listen<{ error: string }>('ollama-stream-error', (event) => {
+    if (!isDone) {
+      cleanup();
+      callbacks.onError(event.payload.error);
+    }
+  });
+  if (isDone) {
+    errorUnlisten();
+  } else {
+    unlistens.push(errorUnlisten);
+  }
+
+  // Trigger the Tauri command in the background; do not block returning cleanup
+  invoke('ollama_chat_stream', { provider, model, apiKey, messages }).catch((err: any) => {
+    if (!isDone) {
+      cleanup();
+      callbacks.onError(err?.message || String(err));
+    }
+  });
+
+  return cleanup;
 }
 
 export async function ollamaGetDefaultModel(): Promise<string | null> {
@@ -166,4 +202,8 @@ export async function listPlanVersions(agentId: string): Promise<PlanVersion[]> 
 
 export async function restorePlanVersion(versionId: string): Promise<AgentPlan> {
   return invoke('restore_plan_version', { versionId });
+}
+
+export async function writeFile(path: string, content: string): Promise<void> {
+  return invoke('write_file', { path, content });
 }

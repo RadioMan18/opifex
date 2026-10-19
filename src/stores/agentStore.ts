@@ -82,8 +82,101 @@ const state = reactive<AgentState>({
 const isInitialized = ref(false);
 
 let streamingMessageId: string | null = null;
+let failedAssistantMessageId: string | null = null;
 let streamingContent = '';
-let streamUnlistens: (() => void)[] = [];
+let streamCleanup: (() => void) | null = null;
+
+function parseStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+    throw new Error('Oppy returned an invalid agent plan');
+  }
+  return value;
+}
+
+function repairRepeatedOutput(content: string): string {
+  return content
+    // Strip interleaved newline+quote artifacts: "\n"key": → "key":
+    .replace(/"\s*\n\s*"/g, '"')
+    .replace(/"\s*"/g, '"')
+    .replace(/":\s*":/g, '":')
+    .replace(/([.,!?])",\s*\1"/g, '$1"')
+    .replace(/(['']ve)(?:\1)+/gi, '$1')
+    .replace(/\bII(?=[''])/g, 'I')
+    // Collapse zero-space adjacent duplicates (e.g. planplan → plan, goalgoal → goal)
+    .replace(/\b([\p{L}\p{N}_-]{2,})\1\b/giu, '$1')
+    // Collapse space-separated word repetitions (e.g. "plan plan")
+    .replace(/\b([\p{L}\p{N}_-]+)(?:\s+\1\b)+/giu, '$1')
+    .replace(/\b(\d)\s+\1(\d+)\b/g, '$1$2')
+    .replace(/([.,!?])\1+/g, '$1')
+    .replace(/([.!?])"\s*\1"/g, '$1"')
+    .replace(/_([a-z])_\1/gi, '_$1')
+    .replace(/\/([A-Z])\/\1(?=[a-z])/g, '/$1')
+    .replace(/\b([A-Z][a-z]+)(?=[A-Z])/g, word =>
+      word.replace(/([\p{L}\p{N}_-]{2,})\1+/giu, '$1')
+    )
+    // Greedy catch-all for any remaining adjacent duplicate substrings (3+ chars)
+    .replace(/([\p{L}\p{N}_-]{3,})\1+/giu, '$1');
+}
+
+function repairCorruptedFieldNames(content: string): string {
+  const fieldNames = ['response', 'plan', 'goal', 'steps', 'tools', 'knowledgeSources', 'triggers', 'outputs'];
+  return content.replace(/"([^"]+)"(?=\s*:)/g, (match, rawName: string) => {
+    const name = repairRepeatedOutput(rawName).replace(/\s/g, '').toLowerCase();
+    const fieldName = fieldNames.find(candidate => {
+      const normalized = candidate.toLowerCase();
+      return name === normalized || (name.includes(normalized) && name.length <= normalized.length + 4);
+    });
+    return fieldName ? `"${fieldName}"` : match;
+  });
+}
+
+function repairDuplicateDelimiters(content: string): string {
+  // Pre-pass: collapse interleaved newline+quote artifacts before structural repair
+  const prepass = content
+    .replace(/"\s*\n\s*"/g, '"')
+    .replace(/\}\s*\n\s*\}/g, '}')
+    .replace(/\]\s*\n\s*\]/g, ']');
+  const normalized = repairCorruptedFieldNames(repairRepeatedOutput(prepass))
+    .replace(/^(\s*)\{\s*\{+/, '$1{')
+    .replace(/:\s*\{\s*\{+/g, ':{')
+    .replace(/:\s*\[\s*\[+/g, ':[')
+    .replace(/\[\s*\[/g, '[')
+    .replace(/\]\s*\]+(?=\s*[,}])/g, ']')
+    .replace(/\[\s*\]\s*\[\s*\]/g, '[]')
+    .replace(/,\s*\[\s*\](?=\s*[,}])/g, '')
+    .replace(/,\s*,+/g, ',')
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/",\s*",/g, '",')
+    .replace(/(?:\s*\}){2,}\s*,\s*"response"\s*:/g, '}, "response":');
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  const balanced = [...normalized].filter(character => {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      return true;
+    }
+    if (character === '"') {
+      inString = true;
+      return true;
+    }
+    if (character === '{' || character === '[') {
+      stack.push(character);
+      return true;
+    }
+    if (character === '}' || character === ']') {
+      const expected = character === '}' ? '{' : '[';
+      if (stack.at(-1) !== expected) return false;
+      stack.pop();
+    }
+    return true;
+  }).join('');
+  return balanced + stack.reverse().map(open => open === '{' ? '}' : ']').join('');
+}
 
 export function useAgentStore() {
   async function init() {
@@ -191,7 +284,7 @@ export function useAgentStore() {
     cleanupStream();
     try {
       state.currentAgent = await ipcGetAgent(id);
-      state.currentPlan = state.currentAgent?.specJson ?? null;
+      state.currentPlan = null;
 
       // Always start fresh — don't load old conversations automatically.
       // Conversation history can be loaded explicitly if the user chooses a previous conversation.
@@ -218,6 +311,10 @@ export function useAgentStore() {
     state.currentConversationId = conv.id;
     state.conversations = [conv, ...state.conversations.filter(c => c.id !== conv.id)];
     state.messages = [];
+    state.currentPlan = null;
+    state.interviewing = true;
+    state.buildError = null;
+    state.rawStreamingContent = null;
     return conv.id;
   }
 
@@ -244,7 +341,7 @@ export function useAgentStore() {
         isStarter: false,
       });
       state.currentAgent = agent;
-      state.currentPlan = agent.specJson;
+      state.currentPlan = null;
       state.messages = [];
       state.conversations = [];
       state.currentConversationId = null;
@@ -313,6 +410,10 @@ export function useAgentStore() {
     }
     if (!content.trim()) return;
 
+    if (failedAssistantMessageId) {
+      state.messages = state.messages.filter(message => message.id !== failedAssistantMessageId);
+      failedAssistantMessageId = null;
+    }
     cleanupStream();
 
     if (!state.currentConversationId) {
@@ -353,6 +454,7 @@ export function useAgentStore() {
 
     state.streaming = true;
     state.error = null;
+    state.buildError = null;
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
@@ -362,12 +464,12 @@ export function useAgentStore() {
     const ollamaMessages: OllamaMessage[] = [
       { role: 'system', content: systemPrompt },
       ...state.messages
-        .filter(m => m.id !== streamingMessageId)
+        .filter(m => m.id !== streamingMessageId && m.id !== failedAssistantMessageId)
         .map(m => ({ role: m.role, content: m.content })),
     ];
 
     try {
-      const unlistens = await ipcOllamaChatStream(
+      const cleanup = await ipcOllamaChatStream(
         provider,
         model,
         apiKey,
@@ -386,11 +488,15 @@ export function useAgentStore() {
           onError: (err: string) => {
             state.streaming = false;
             state.error = err;
+            if (!state.interviewing) {
+              state.buildError = err;
+              failedAssistantMessageId = streamingMessageId;
+            }
             cleanupStream();
           },
         },
       );
-      streamUnlistens = unlistens;
+      streamCleanup = cleanup;
     } catch (err: any) {
       state.streaming = false;
       state.error = err?.message || String(err);
@@ -405,53 +511,84 @@ export function useAgentStore() {
       : '{}';
 
     if (state.interviewing) {
-      return `You are Oppy, an expert AI agent builder for Opifex.
+      return `You are Oppy, a senior AI Agent Architect for Opifex. Your mission is to interview the user and design a production-grade, highly autonomous, unambiguous AI agent specification.
 
 Current agent: "${agentName}"
 Current plan (JSON): ${currentPlan}
 
-INTERVIEW MODE: You are interviewing the user to understand what they want their agent to do.
+INTERVIEW MODE — 4-PILLAR ARCHITECTURAL FRAMEWORK:
+An autonomous agent fails when instructions are ambiguous or underspecified. You must proactively identify gaps and ask targeted clarifying questions across these 4 pillars:
 
-Your job:
-1. Have a natural conversation and ask clarifying questions about the agent's goal, steps, tools, knowledge sources, triggers, and outputs
-2. Ask questions one at a time or in small related batches — don't overwhelm the user
-3. Be helpful, concise, and professional
-4. Do NOT produce any JSON plan yet — we are still in the interview phase
-5. When you have enough information to build a complete plan, ask: "Should I build this agent now?"
-6. Wait for the user to confirm before switching to plan generation mode
+1. GOAL & SCOPE:
+   - Precise objective, target domain, explicit inclusion/exclusion constraints, and relevant time horizons (e.g. "past 15 days", "last 12 months", "stable releases only").
+2. DETERMINISTIC LOGIC & METRICS:
+   - If ranking, scoring, or deciding: What is the exact formula, weightings, or thresholds? (e.g., "60% GitHub stars + 40% Reddit comment volume", "minimum 500 stars and commit within 6 months").
+   - If filtering: What are the explicit cutoff criteria?
+3. TOOLS vs. KNOWLEDGE SOURCES:
+   - "tools": Callable actions/capabilities only (e.g., web_search, github_api, text_summarizer, code_linter).
+   - "knowledgeSources": Information stores, repositories, APIs, or documents to query (e.g., github_repositories, reddit_community_threads, company_docs.md). Never list tools as knowledgeSources.
+4. OUTPUT DELIVERABLES & FORMAT:
+   - What exact deliverables and schema are required? (e.g., Markdown comparison table with columns [Rank, Tool, License, Stars, Reddit Score, Summary], executive report, citation links).
 
-The user sees your messages on the left side of the screen. The plan panel on the right will remain empty until the interview is complete.`;
+CONVERSATIONAL RULES:
+1. Proactively spot missing details from the 4 pillars and ask 1 or 2 focused clarifying questions at a time.
+2. Offer sensible recommendations or multiple-choice options with your questions so the user can easily decide (e.g. "For ranking, should we weight stars higher (e.g., 60% stars / 40% Reddit comments), and limit Reddit discussions to the past 12 months?").
+3. Continuously update the "plan" JSON object with specific, detailed steps reflecting agreed criteria — do not leave steps as vague placeholders (e.g. write "Rank candidates using a composite score weighting GitHub stars at 60% and Reddit mentions at 40%" instead of just "Rank the tools").
+4. Keep "response" conversational, concise, and professional.
+5. Never stutter or repeat words or tokens.
+6. When the goal, logic/criteria, tools/sources, and output formats are sufficiently defined for autonomous execution without guessing, ask: "Should I build this agent now?"
+
+For EVERY turn, return ONLY a valid JSON object in this exact format:
+{
+  "response": "Your conversational reply and 1-2 clarifying questions with suggestions",
+  "plan": {
+    "goal": "Clear, scoped objective with constraints",
+    "steps": ["Step 1 with specific criteria", "Step 2 with action and inputs", ...],
+    "tools": ["callable_tool_1", "callable_tool_2"],
+    "knowledgeSources": ["data_source_1", "documentation_2"],
+    "triggers": ["trigger_event_1"],
+    "outputs": ["output_format_1", "output_format_2"]
+  }
+}
+Use empty strings or arrays for details not yet determined. The plan panel updates live after every turn.`;
     } else {
-      return `You are Oppy, an expert AI agent builder for Opifex. You help users design AI agents for business use through conversation.
+      return `You are Oppy, a senior AI Agent Architect for Opifex. The interview is complete. Compile the full conversation into a final, production-ready, unambiguous agent specification that an autonomous agent can follow without guessing.
 
 Current agent: "${agentName}"
 Current plan (JSON):
 ${currentPlan}
 
-PLAN MODE: The interview is complete. Your job is to produce and refine a structured agent plan.
+PLAN MODE — PRODUCTION SPECIFICATION STANDARDS:
+1. "goal": A clear, high-precision objective specifying domain, constraints, and time horizons.
+2. "steps": Ordered, self-contained, actionable instructions. Every step must contain:
+   - Actionable criteria and deterministic rules (e.g. scoring formulas, filtering cutoffs, specific search queries).
+   - Explicit inputs, actions to perform, and expected intermediate outputs.
+   - No vague placeholders like "Search tools" or "Rank them" — specify HOW to search, WHAT to filter, and HOW to rank.
+3. "tools": Only valid callable tools and actions (e.g., web_search, github_api, document_summarizer, citation_formatter).
+4. "knowledgeSources": Target information repositories, documentation corpora, databases, or online platforms (e.g., github_repositories, reddit_community_threads, company_docs.md). Do NOT list tools as knowledgeSources.
+5. "triggers": Events or conditions that invoke the agent (e.g., user_request, schedule_daily).
+6. "outputs": Concrete artifacts with schema/format expectations (e.g., top_10_comparison_table, detailed_tool_breakdown, source_citations_with_urls).
 
-Your job:
-1. Produce a COMPLETE updated plan as a JSON object in this exact format:
+RESPONSE FORMAT:
+Return ONLY a raw JSON object — no markdown code fences, no explanations before or after:
 {
-  "goal": "string - what the agent accomplishes",
-  "steps": ["step 1", "step 2", "step 3"],
-  "tools": ["tool1", "tool2"],
-  "knowledgeSources": ["source1.md", "source2.pdf"],
-  "triggers": ["trigger1", "trigger2"],
-  "outputs": ["output1", "output2"]
+  "response": "A concise summary of the built agent, highlighting its scope, scoring logic, and outputs.",
+  "plan": {
+    "goal": "string",
+    "steps": ["step 1 with explicit logic", "step 2 with inputs and criteria", ...],
+    "tools": ["tool1", "tool2"],
+    "knowledgeSources": ["source1", "source2"],
+    "triggers": ["trigger1"],
+    "outputs": ["output1", "output2"]
+  }
 }
-
- 2. Return ONLY a raw JSON object — no markdown code blocks, no explanation, no prose before or after
-3. Update the plan incrementally based on the conversation — don't repeat the same plan unless nothing changed
-4. Be helpful, concise, and professional
-5. Ensure valid JSON syntax — double-quoted keys and string values only
-
-The user sees the plan on the right side of the screen updating in real-time. Make each turn count.`;
+Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     }
   }
 
   async function confirmBuild() {
     if (!state.currentAgent) return;
+    cleanupStream();
     state.interviewing = false;
     state.buildError = null;
     state.rawStreamingContent = null;
@@ -477,13 +614,15 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     }
 
     const provider = state.provider ?? 'ollama';
-    const model = state.currentAgent.model;
+    const model = state.defaultModel ?? state.currentAgent.model;
     const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
       { role: 'system', content: systemPrompt },
-      ...state.messages.map(m => ({ role: m.role, content: m.content })),
+      ...state.messages
+        .filter(m => m.id !== failedAssistantMessageId)
+        .map(m => ({ role: m.role, content: m.content })),
     ];
 
     state.streaming = true;
@@ -502,7 +641,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     state.messages.push(assistantMessage);
 
     try {
-      const unlistens = await ipcOllamaChatStream(
+      const cleanup = await ipcOllamaChatStream(
         provider,
         model,
         apiKey,
@@ -521,11 +660,15 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
           onError: (err: string) => {
             state.streaming = false;
             state.error = err;
+            if (!state.interviewing) {
+              state.buildError = err;
+              failedAssistantMessageId = streamingMessageId;
+            }
             cleanupStream();
           },
         },
       );
-      streamUnlistens = unlistens;
+      streamCleanup = cleanup;
     } catch (err: any) {
       state.streaming = false;
       state.error = err?.message || String(err);
@@ -535,14 +678,14 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
 
   async function retryBuild() {
     if (!state.currentAgent) return;
+    cleanupStream();
     state.buildError = null;
     state.rawStreamingContent = null;
     state.interviewing = false;
 
-    // Remove the last failed assistant message if it exists
-    const lastMsg = state.messages[state.messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.id === streamingMessageId) {
-      state.messages = state.messages.slice(0, -1);
+    if (failedAssistantMessageId) {
+      state.messages = state.messages.filter(message => message.id !== failedAssistantMessageId);
+      failedAssistantMessageId = null;
     }
 
     const buildMessage: Message = {
@@ -566,13 +709,15 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     }
 
     const provider = state.provider ?? 'ollama';
-    const model = state.currentAgent.model;
+    const model = state.defaultModel ?? state.currentAgent.model;
     const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
       { role: 'system', content: systemPrompt },
-      ...state.messages.map(m => ({ role: m.role, content: m.content })),
+      ...state.messages
+        .filter(m => m.id !== failedAssistantMessageId)
+        .map(m => ({ role: m.role, content: m.content })),
     ];
 
     state.streaming = true;
@@ -591,7 +736,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     state.messages.push(assistantMessage);
 
     try {
-      const unlistens = await ipcOllamaChatStream(
+      const cleanup = await ipcOllamaChatStream(
         provider,
         model,
         apiKey,
@@ -610,11 +755,15 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
           onError: (err: string) => {
             state.streaming = false;
             state.error = err;
+            if (!state.interviewing) {
+              state.buildError = err;
+              failedAssistantMessageId = streamingMessageId;
+            }
             cleanupStream();
           },
         },
       );
-      streamUnlistens = unlistens;
+      streamCleanup = cleanup;
     } catch (err: any) {
       state.streaming = false;
       state.error = err?.message || String(err);
@@ -623,6 +772,7 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
   }
 
   function handleStreamEnd(messageId: string) {
+    const completedContent = streamingContent;
     state.streaming = false;
     state.streamingMsgId = null;
     cleanupStream();
@@ -631,30 +781,62 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
     if (!msg) return;
 
     // If no content was streamed, show an error instead of trying to parse
-    if (!streamingContent || streamingContent.trim().length === 0) {
+    if (!completedContent || completedContent.trim().length === 0) {
+      failedAssistantMessageId = messageId;
       state.buildError = "Oppy didn't return a response. Click Retry to try again.";
       return;
     }
 
     try {
-      // Strip markdown code block fences if present
-      let cleaned = streamingContent.trim();
-      // Remove ```json ... ``` or ``` ... ``` wrappers
-      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
-
-      // Try to find JSON object within the text (between first { and last })
+      let cleaned = completedContent.trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/, '')
+        .trim();
       const firstBrace = cleaned.indexOf('{');
       const lastBrace = cleaned.lastIndexOf('}');
       if (firstBrace >= 0 && lastBrace > firstBrace) {
         cleaned = cleaned.substring(firstBrace, lastBrace + 1);
       }
-
-      // Remove any trailing commas before } or ] (common LLM mistake)
       cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
 
-      const plan = JSON.parse(cleaned) as AgentPlan;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        cleaned = repairDuplicateDelimiters(cleaned)
+          .replace(/,(\s*[}\]])/g, '$1');
+        parsed = JSON.parse(cleaned);
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Oppy response must be a JSON object');
+      }
+      const parsedObject = parsed as Record<string, unknown>;
+      const wrappedPlan = parsedObject.plan;
+      const planValue = wrappedPlan ?? parsedObject;
+      if (!planValue || typeof planValue !== 'object' || Array.isArray(planValue)) {
+        throw new Error('Oppy response did not include an agent plan');
+      }
+      const planObject = planValue as Record<string, unknown>;
+      if (planObject.goal !== undefined && typeof planObject.goal !== 'string') {
+        throw new Error('Oppy returned an invalid agent plan');
+      }
+      const plan: AgentPlan = {
+        goal: typeof planObject.goal === 'string' ? planObject.goal : undefined,
+        steps: parseStringArray(planObject.steps),
+        tools: parseStringArray(planObject.tools),
+        knowledgeSources: parseStringArray(planObject.knowledgeSources),
+        triggers: parseStringArray(planObject.triggers),
+        outputs: parseStringArray(planObject.outputs),
+      };
+      const response = typeof parsedObject.response === 'string'
+        ? parsedObject.response
+        : 'I updated the agent plan based on our conversation.';
+      msg.content = response;
       msg.turnPlanJson = plan;
       state.currentPlan = plan;
+      state.buildError = null;
+      failedAssistantMessageId = null;
 
       if (state.currentConversationId) {
         ipcSaveMessage({
@@ -662,7 +844,9 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
           role: 'assistant',
           content: msg.content,
           turnPlanJson: plan,
-        }).catch(() => {});
+        }).catch((err: unknown) => {
+          state.error = err instanceof Error ? err.message : String(err);
+        });
       }
 
       if (state.currentAgent) {
@@ -678,11 +862,15 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
             specJson: plan,
             updatedAt: new Date().toISOString(),
           };
-        }).catch(() => {});
+        }).catch((err: unknown) => {
+          state.error = err instanceof Error ? err.message : String(err);
+        });
       }
-    } catch {
-      state.buildError = "Oppy returned a response but it wasn't valid JSON. Try qwen3-coder:30b or llama3.2 for better JSON output. You can retry or continue the interview.";
-      state.rawStreamingContent = streamingContent;
+    } catch (error: unknown) {
+      failedAssistantMessageId = messageId;
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      state.buildError = `Oppy returned a response but it wasn't valid JSON.${detail} Try qwen3-coder:30b or llama3.2 for better JSON output. You can retry or continue the interview.`;
+      state.rawStreamingContent = completedContent;
       if (state.currentConversationId) {
         ipcSaveMessage({
           conversationId: state.currentConversationId,
@@ -695,8 +883,12 @@ The user sees the plan on the right side of the screen updating in real-time. Ma
   }
 
   function cleanupStream() {
-    streamUnlistens.forEach(unlisten => unlisten());
-    streamUnlistens = [];
+    if (streamCleanup) {
+      try {
+        streamCleanup();
+      } catch {}
+      streamCleanup = null;
+    }
     streamingMessageId = null;
     streamingContent = '';
     state.streaming = false;

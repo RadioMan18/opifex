@@ -5,44 +5,48 @@ import type { AgentPlan } from '@/types/agent';
 
 const props = defineProps({
   plan: { type: Object as PropType<AgentPlan | null>, required: true, default: null },
-  onUpdate: { type: Function as PropType<(section: keyof AgentPlan, value: string | string[]) => void>, required: true },
   agentName: { type: String, required: true },
-  onSaveVersion: { type: Function as PropType<(label?: string) => void>, required: true },
-  onRestoreVersion: { type: Function as PropType<(versionId: string) => void>, required: true },
   versions: { type: Array as PropType<any[]>, required: true, default: () => [] },
 });
+
+const emit = defineEmits<{
+  update: [section: keyof AgentPlan, value: string | string[]],
+  'save-version': [],
+  'restore-version': [versionId: string],
+  'export-agent': [],
+}>();
 
 const plan = computed(() => props.plan);
 const showVersions = ref(false);
 
 const planGoal = computed({
   get: () => plan.value?.goal || '',
-  set: (val: string) => props.onUpdate('goal', val),
+  set: (val: string) => emit('update', 'goal', val),
 });
 
 const planSteps = computed({
   get: () => formatArray(plan.value?.steps),
-  set: (val: string) => props.onUpdate('steps', val.split(',').map(s => s.trim()).filter(Boolean)),
+  set: (val: string) => emit('update', 'steps', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 const planTools = computed({
   get: () => formatArray(plan.value?.tools),
-  set: (val: string) => props.onUpdate('tools', val.split(',').map(s => s.trim()).filter(Boolean)),
+  set: (val: string) => emit('update', 'tools', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 const planKnowledge = computed({
   get: () => formatArray(plan.value?.knowledgeSources),
-  set: (val: string) => props.onUpdate('knowledgeSources', val.split(',').map(s => s.trim()).filter(Boolean)),
+  set: (val: string) => emit('update', 'knowledgeSources', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 const planTriggers = computed({
   get: () => formatArray(plan.value?.triggers),
-  set: (val: string) => props.onUpdate('triggers', val.split(',').map(s => s.trim()).filter(Boolean)),
+  set: (val: string) => emit('update', 'triggers', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 const planOutputs = computed({
   get: () => formatArray(plan.value?.outputs),
-  set: (val: string) => props.onUpdate('outputs', val.split(',').map(s => s.trim()).filter(Boolean)),
+  set: (val: string) => emit('update', 'outputs', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 function formatArray(val: string[] | undefined): string {
@@ -65,7 +69,8 @@ function formatDate(iso: string): string {
         <button class="btn-version" @click="showVersions = !showVersions" :class="{ active: showVersions }">
           📚 Versions
         </button>
-        <button class="btn-save-version" @click="props.onSaveVersion()">💾 Save Version</button>
+        <button class="btn-save-version" @click="emit('save-version')" title="Save version to history & file">💾 Save Version</button>
+        <button class="btn-export-agent" @click="emit('export-agent')" title="Save agent to JSON file">💾 Save Agent</button>
       </div>
     </div>
 
@@ -143,7 +148,7 @@ function formatDate(iso: string): string {
             <div class="version-label">{{ v.label || 'Untitled version' }}</div>
             <div class="version-date">{{ formatDate(v.created_at) }}</div>
           </div>
-          <button class="btn-restore" @click="props.onRestoreVersion(v.id)">Restore</button>
+          <button class="btn-restore" @click="emit('restore-version', v.id)">Restore</button>
         </div>
       </div>
       <div v-if="props.versions.length === 0" class="version-empty">
@@ -305,7 +310,7 @@ function formatDate(iso: string): string {
   padding: 1rem;
 }
 
-.btn-version, .btn-save-version {
+.btn-version, .btn-save-version, .btn-export-agent {
   padding: 0.5rem 0.875rem;
   font-size: 0.8rem;
   border: none;
@@ -335,6 +340,14 @@ function formatDate(iso: string): string {
 }
 .btn-save-version:hover {
   background: #059669;
+}
+
+.btn-export-agent {
+  background: #0066cc;
+  color: #ffffff;
+}
+.btn-export-agent:hover {
+  background: #0052a3;
 }
 
 .plan-empty {

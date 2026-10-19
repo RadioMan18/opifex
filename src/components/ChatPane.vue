@@ -1,49 +1,34 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { PropType } from 'vue';
 import type { Message } from '@/types/agent';
 
-const props = defineProps({
+defineProps({
   messages: { type: Array as PropType<Message[]>, required: true },
   streaming: { type: Boolean, required: true },
   streamingMsgId: { type: String, required: true },
   currentAgentName: { type: String, required: false, default: '' },
   interviewing: { type: Boolean, required: false, default: false },
   buildError: { type: [String] as PropType<string | null>, required: false, default: null },
-  onSend: { type: Function as PropType<(content: string) => void>, required: true },
 });
 
-const emit = defineEmits(['build', 'retry']);
+const emit = defineEmits(['send', 'build', 'retry', 'new-conversation']);
 const newMessage = ref('');
-const dots = ref('');
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-let dotsInterval: ReturnType<typeof setInterval> | null = null;
-
-function startDots() {
-  let count = 0;
-  dotsInterval = setInterval(() => {
-    count = (count + 1) % 4;
-    dots.value = '.'.repeat(count);
-  }, 400);
+function adjustHeight() {
+  if (!textareaRef.value) return;
+  textareaRef.value.style.height = 'auto';
+  textareaRef.value.style.height = `${Math.min(textareaRef.value.scrollHeight, 160)}px`;
 }
-
-function stopDots() {
-  if (dotsInterval) {
-    clearInterval(dotsInterval);
-    dotsInterval = null;
-  }
-  dots.value = '';
-}
-
-watch(() => props.streaming, (streaming) => {
-  if (streaming) startDots();
-  else stopDots();
-});
 
 async function handleSend() {
   if (!newMessage.value.trim()) return;
-  props.onSend(newMessage.value);
+  emit('send', newMessage.value);
   newMessage.value = '';
+  if (textareaRef.value) {
+    textareaRef.value.style.height = 'auto';
+  }
 }
 
 async function handleBuild() {
@@ -74,11 +59,15 @@ function formatTime(iso: string): string {
         <div>
           <h2>{{ currentAgentName || 'Oppy' }}</h2>
           <div class="chat-subtitle">
-            {{ interviewing ? 'Interview mode — Oppy is asking questions' : 'Building agent' }}
+            <template v-if="interviewing">Interview mode — Oppy is asking questions</template>
+            <template v-else-if="streaming">Building agent...</template>
+            <template v-else-if="buildError">Build failed — check error or retry</template>
+            <template v-else>Agent built — plan ready in panel</template>
           </div>
         </div>
       </div>
       <div class="chat-actions">
+        <button v-if="currentAgentName" class="btn-new-chat" @click="emit('new-conversation')" title="Start a fresh conversation and clear plan">💬 New Chat</button>
         <button v-if="interviewing" class="btn-build" @click="handleBuild">Build Agent</button>
         <button v-if="!interviewing && buildError" class="btn-retry" @click="handleRetry">Retry</button>
         <span v-if="!interviewing && buildError" class="build-error">{{ buildError }}</span>
@@ -104,10 +93,36 @@ function formatTime(iso: string): string {
         </div>
         <div class="message-content">
           <div class="message-text">{{ msg.content }}</div>
+          <div v-if="msg.turnPlanJson" class="message-plan-card">
+            <div class="plan-card-header">
+              <span class="plan-card-icon">📋</span>
+              <span class="plan-card-title">Agent Plan</span>
+            </div>
+            <div v-if="msg.turnPlanJson.goal" class="plan-card-goal">
+              <strong>Goal:</strong> {{ msg.turnPlanJson.goal }}
+            </div>
+            <div v-if="msg.turnPlanJson.steps && msg.turnPlanJson.steps.length" class="plan-card-steps">
+              <strong>Steps ({{ msg.turnPlanJson.steps.length }}):</strong>
+              <ol class="plan-steps-preview">
+                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step }}</li>
+                <li v-if="msg.turnPlanJson.steps.length > 3" class="more-steps">
+                  + {{ msg.turnPlanJson.steps.length - 3 }} more steps (see Plan panel)
+                </li>
+              </ol>
+            </div>
+          </div>
           <div class="message-meta">
             <span class="message-role">{{ msg.role === 'user' ? 'You' : 'Oppy' }}</span>
             <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
-            <span v-if="streaming && msg.id === streamingMsgId" class="streaming-indicator">Oppy{{ dots }}</span>
+            <span
+              v-if="streaming && msg.id === streamingMsgId"
+              class="streaming-indicator"
+              role="status"
+              aria-label="Oppy is responding"
+            >
+              Oppy
+              <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            </span>
           </div>
         </div>
       </div>
@@ -115,11 +130,12 @@ function formatTime(iso: string): string {
 
     <div class="chat-input-area" v-if="currentAgentName">
       <textarea
+        ref="textareaRef"
         v-model="newMessage"
-        placeholder="Tell Oppy what you want your agent to do..."
+        placeholder="Tell Oppy what you want your agent to do... (Shift+Enter for new line)"
         rows="1"
-        @keydown.enter.shift.prevent
-        @keydown.enter="handleKeyDown"
+        @keydown="handleKeyDown"
+        @input="adjustHeight"
         class="chat-textarea"
       ></textarea>
       <button class="btn-send" @click="handleSend" :disabled="streaming || !newMessage.trim()">Send</button>
@@ -206,6 +222,26 @@ function formatTime(iso: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.btn-new-chat {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: all 0.2s;
+}
+
+.btn-new-chat:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
 }
 
 .model-select {
@@ -340,16 +376,38 @@ function formatTime(iso: string): string {
 
 .streaming-indicator {
   color: #0066cc;
-  animation: dots 1.5s infinite;
   font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-@keyframes dots {
-  0%, 20% { color: #0066cc; opacity: 1; }
-  40% { opacity: 0.4; }
-  60% { opacity: 1; }
-  80% { opacity: 0.4; }
-  100% { opacity: 1; }
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.typing-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: typing-dot 1s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
 }
 
 .chat-input-area {
@@ -397,6 +455,50 @@ function formatTime(iso: string): string {
 .btn-send:disabled {
   background: #9ca3af;
   cursor: not-allowed;
+}
+
+.message-plan-card {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 102, 204, 0.06);
+  border: 1px solid rgba(0, 102, 204, 0.2);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: #1f2937;
+}
+
+.plan-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #0066cc;
+  margin-bottom: 0.4rem;
+}
+
+.plan-card-goal {
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+}
+
+.plan-card-steps strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.plan-steps-preview {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.more-steps {
+  list-style-type: none;
+  font-style: italic;
+  color: #6b7280;
+  margin-top: 0.2rem;
 }
 
 @keyframes fadeIn {
