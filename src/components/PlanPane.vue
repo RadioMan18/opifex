@@ -1,22 +1,26 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { PropType } from 'vue';
-import type { AgentPlan } from '@/types/agent';
+import type { AgentPlan, PlanVersion } from '@/types/agent';
 
 const props = defineProps({
   plan: { type: Object as PropType<AgentPlan | null>, required: true, default: null },
   agentName: { type: String, required: true },
   versions: { type: Array as PropType<any[]>, required: true, default: () => [] },
+  compareVersionId: { type: String as PropType<string | null>, required: false, default: null },
+  compareVersion: { type: Object as PropType<PlanVersion | null>, required: false, default: null },
 });
 
 const emit = defineEmits<{
   update: [section: keyof AgentPlan, value: string | string[]],
   'save-version': [],
   'restore-version': [versionId: string],
+  'compare-version': [versionId: string | null],
   'export-agent': [],
 }>();
 
 const plan = computed(() => props.plan);
+const compareVersion = computed(() => props.compareVersion);
 const showVersions = ref(false);
 
 const planGoal = computed({
@@ -149,11 +153,60 @@ function formatDate(iso: string): string {
             <div class="version-date">{{ formatDate(v.created_at) }}</div>
           </div>
           <button class="btn-restore" @click="emit('restore-version', v.id)">Restore</button>
+          <button class="btn-compare" @click="emit('compare-version', v.id)">Compare</button>
         </div>
       </div>
       <div v-if="props.versions.length === 0" class="version-empty">
         No saved versions yet.
       </div>
+    </div>
+
+    <div v-if="compareVersion" class="plan-diff-view">
+      <h4>Plan Version Comparison</h4>
+      <div class="diff-info">
+        <span class="diff-current">Current: {{ plan?.goal || 'No plan' }}</span>
+        <span class="diff-arrow">↔</span>
+        <span class="diff-version">{{ compareVersion.label || 'Untitled version' }}: {{ compareVersion.specJson?.goal || 'No plan' }}</span>
+      </div>
+      <div class="diff-sections">
+        <div class="diff-section">
+          <h5>Goal</h5>
+          <div class="diff-current-text">{{ plan?.goal || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ compareVersion?.specJson?.goal || '—' }}</div>
+        </div>
+        <div class="diff-section">
+          <h5>Steps</h5>
+          <div class="diff-current-text">{{ (plan?.steps || []).join(', ') || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.steps || []).join(', ') || '—' }}</div>
+        </div>
+        <div class="diff-section">
+          <h5>Tools</h5>
+          <div class="diff-current-text">{{ (plan?.tools || []).join(', ') || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.tools || []).join(', ') || '—' }}</div>
+        </div>
+        <div class="diff-section">
+          <h5>Knowledge Sources</h5>
+          <div class="diff-current-text">{{ (plan?.knowledgeSources || []).join(', ') || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.knowledgeSources || []).join(', ') || '—' }}</div>
+        </div>
+        <div class="diff-section">
+          <h5>Triggers</h5>
+          <div class="diff-current-text">{{ (plan?.triggers || []).join(', ') || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.triggers || []).join(', ') || '—' }}</div>
+        </div>
+        <div class="diff-section">
+          <h5>Outputs</h5>
+          <div class="diff-current-text">{{ (plan?.outputs || []).join(', ') || '—' }}</div>
+          <div class="diff-arrow">&harr;</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.outputs || []).join(', ') || '—' }}</div>
+        </div>
+      </div>
+      <button class="btn-close-diff" @click="emit('compare-version', null)">Close Comparison</button>
     </div>
   </div>
 
@@ -305,6 +358,20 @@ function formatDate(iso: string): string {
   background: var(--accent-hover);
 }
 
+.btn-compare {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8rem;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-compare:hover {
+  background: var(--border-hover);
+}
+
 .version-empty {
   font-size: 0.85rem;
   color: var(--text-muted);
@@ -368,5 +435,102 @@ function formatDate(iso: string): string {
 
 .plan-empty p {
   font-size: 0.95rem;
+}
+
+.plan-diff-view {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.diff-info {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.diff-current,
+.diff-version {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-current {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.diff-version {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.diff-arrow {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.diff-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.diff-section {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.diff-section h5 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 140px;
+}
+
+.diff-current-text,
+.diff-version-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.diff-current-text {
+  font-weight: 500;
+}
+
+.diff-version-text {
+  font-weight: 500;
+}
+
+.btn-close-diff {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: var(--danger);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-close-diff:hover {
+  background: var(--danger-hover);
 }
 </style>

@@ -110,6 +110,8 @@ const planVersions = computed(() => state.planVersions);
 const interviewing = computed(() => state.interviewing);
 const buildError = computed(() => state.buildError);
 const isDark = computed(() => darkMode.value);
+const compareVersionId = ref<string | null>(null);
+const compareVersion = computed(() => state.planVersions.find(v => v.id === compareVersionId.value));
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -212,6 +214,10 @@ async function handleRestoreVersion(versionId: string) {
   if (currentAgent.value) {
     await loadPlanVersions(currentAgent.value.id);
   }
+}
+
+async function handleCompareVersion(versionId: string | null) {
+  compareVersionId.value = versionId;
 }
 
 async function handleExportAgent(id: string) {
@@ -370,9 +376,12 @@ async function handleDuplicateAgent(id: string) {
         :plan="currentPlan"
         :agent-name="currentAgent?.name || 'Agent'"
         :versions="planVersions"
+        :compare-version-id="compareVersionId"
+        :compare-version="compareVersion"
         @update="handlePlanUpdate"
         @save-version="handleSaveVersion"
         @restore-version="handleRestoreVersion"
+        @compare-version="handleCompareVersion"
         @export-agent="() => currentAgent && handleExportAgent(currentAgent.id)"
       />
     </div>
