@@ -67,12 +67,12 @@
 | Topics/tags added | ⬜ *(GitHub web UI)* |
 | package.json metadata | ⬜ |
 | Community health files | ✅ |
-| README badges | ⬜ |
-| CI workflow | 🔄 PR #1 open — needs merge |
+| README badges | ✅ |
+| CI workflow | ✅ PR #1 merged |
 | Announcement | ⬜ |
 
 > **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) are GitHub web UI actions — visit https://github.com/RadioMan18/opifex/settings to complete them. CODEOWNERS is skipped per user preference.
 >
 > **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) exist at project root but need to be moved to `.github/` per Phase 4.
 >
-> **CI workflow** created as PR #1 — merge it to enable status checks for branch protection.
+> **CI workflow** ✅ PR #1 merged — workflow active on `main`
