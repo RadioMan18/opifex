@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { save as tauriSaveDialog } from '@tauri-apps/plugin-dialog';
+import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
 import { useAgentStore } from '@/stores/agentStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
@@ -38,7 +38,6 @@ const newAgentName = ref('');
 const newAgentDescription = ref('');
 const showCreateDialog = ref(false);
 const showImportDialog = ref(false);
-const importJson = ref('');
 const showRenameDialog = ref(false);
 const renameId = ref<string | null>(null);
 const renameName = ref('');
@@ -232,13 +231,24 @@ async function handleExportAgent(id: string) {
 }
 
 async function handleImportAgent() {
-  if (!importJson.value.trim()) return;
-  const agent = await importAgent(importJson.value);
-  importJson.value = '';
-  showImportDialog.value = false;
-  if (agent) {
-    // Select the newly imported agent
-    await selectAgent(agent.id);
+  const filePath = await tauriOpenDialog({
+    multiple: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (filePath && filePath.length > 0) {
+    try {
+      // Read the file content using the Tauri read command via IPC
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+    const content = await readFile(filePath[0]);
+    const text = new TextDecoder().decode(content);
+    const agent = await importAgent(text);
+      if (agent) {
+        await selectAgent(agent.id);
+      }
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+    }
   }
 }
 
@@ -400,19 +410,11 @@ async function handleDuplicateAgent(id: string) {
       <div class="modal">
         <h3>Import Agent</h3>
         <div class="form-group">
-          <label>Agent JSON</label>
-          <textarea
-            v-model="importJson"
-            placeholder="Paste agent JSON here..."
-            class="form-input"
-            rows="6"
-          ></textarea>
+          <label>Select agent JSON file</label>
+          <button class="btn-create" @click="handleImportAgent">Browse Files</button>
         </div>
         <div class="form-actions">
-          <button class="btn-cancel" @click="showImportDialog = false">Cancel</button>
-          <button class="btn-create" @click="handleImportAgent" :disabled="!importJson.trim()">
-            Import
-          </button>
+          <button class="btn-cancel" @click="showImportDialog = false">Close</button>
         </div>
       </div>
     </div>

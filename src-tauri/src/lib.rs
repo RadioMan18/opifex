@@ -6,7 +6,7 @@ use crate::commands::{
     export_agent, import_agent, rename_agent, duplicate_agent,
     save_plan_version, list_plan_versions, restore_plan_version,
     ollama_get_provider, ollama_set_provider, ollama_get_api_key, ollama_set_api_key,
-    write_file,
+    write_file, read_file,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -36,6 +36,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_log::Builder::new().build())
     .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
     .setup(|app| {
       let data_dir = app_data_dir().expect("Failed to resolve app data directory");
       let db_path = data_dir.join("opifex.db");
@@ -73,6 +74,7 @@ pub fn run() {
       list_plan_versions,
       restore_plan_version,
       write_file,
+      read_file,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
