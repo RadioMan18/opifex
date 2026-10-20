@@ -512,7 +512,7 @@ async function handleDuplicateAgent(id: string) {
   --shadow: rgba(0, 0, 0, 0.1);
 }
 
-.app-container.dark {
+[data-theme="dark"] .app-container {
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
   --bg-tertiary: #334155;
@@ -586,10 +586,10 @@ async function handleDuplicateAgent(id: string) {
 
 .error-banner {
   padding: 0.625rem 1.5rem;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--bg-tertiary);
+  color: var(--danger);
   font-size: 0.875rem;
-  border-bottom: 1px solid #fee2e2;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -746,7 +746,7 @@ async function handleDuplicateAgent(id: string) {
 .btn-save-version-bar {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
-  background: #10b981;
+  background: var(--success);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -755,7 +755,7 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .btn-save-version-bar:hover {
-  background: #059669;
+  background: var(--success-hover);
 }
 
 .provider-selector {

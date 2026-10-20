@@ -148,19 +148,19 @@ function formatTime(iso: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
+  background: var(--bg-secondary);
   border-right: 1px solid #e5e5e5;
   overflow: hidden;
 }
 
 .chat-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .chat-icon {
@@ -171,12 +171,12 @@ function formatTime(iso: string): string {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .chat-subtitle {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 0.125rem;
 }
 
@@ -187,7 +187,7 @@ function formatTime(iso: string): string {
 .btn-build {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #10b981;
+  background: var(--success);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -196,7 +196,7 @@ function formatTime(iso: string): string {
 }
 
 .btn-build:hover {
-  background: #059669;
+  background: var(--success-hover);
 }
 
 .btn-retry {
