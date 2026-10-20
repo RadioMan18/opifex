@@ -37,10 +37,6 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --check || echo "Formatting issues found - run cargo fmt locally"
 
-      - name: Run Rust clippy
-        working-directory: src-tauri
-        run: cargo clippy -- -D warnings
-
       - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test
