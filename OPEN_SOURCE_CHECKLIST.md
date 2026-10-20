@@ -2,8 +2,8 @@
 
 ## Phase 1: GitHub Repository Visibility
 
-- [ ] Make repository public (Settings → General → Danger Zone → Change repository visibility)
-- [ ] Confirm repository is public by viewing in an incognito/private browser window
+- [x] Make repository public (Settings → General → Danger Zone → Change repository visibility)
+- [x] Confirm repository is public by viewing in an incognito/private browser window
 
 ## Phase 2: Repository Metadata
 

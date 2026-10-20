@@ -89,15 +89,15 @@ defineProps({
 }
 
 .message.user .message-text {
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border-bottom-right-radius: 4px;
 }
 
 .message.assistant .message-text {
-  background: #f1f1f3;
-  color: #1a1a1a;
-  border: 1px solid #e5e5e5;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 
@@ -105,7 +105,7 @@ defineProps({
   display: flex;
   gap: 0.5rem;
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .message.user .message-meta {
@@ -117,7 +117,7 @@ defineProps({
 }
 
 .streaming-indicator {
-  color: #0066cc;
+  color: var(--accent);
   animation: pulse 1.5s infinite;
 }
 

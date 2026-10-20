@@ -168,17 +168,17 @@ function formatDate(iso: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
+  background: var(--bg-secondary);
 }
 
 .plan-header {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .plan-icon {
@@ -189,7 +189,7 @@ function formatDate(iso: string): string {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .plan-actions {
@@ -216,7 +216,7 @@ function formatDate(iso: string): string {
 .section-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -224,32 +224,34 @@ function formatDate(iso: string): string {
 .plan-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: inherit;
   resize: vertical;
   min-height: 80px;
   transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .plan-input:focus {
   outline: none;
-  border-color: #0066cc;
-  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .version-history {
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e5e5;
-  background: #fafafa;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
 }
 
 .version-history h4 {
   margin: 0 0 0.75rem 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -267,9 +269,9 @@ function formatDate(iso: string): string {
   justify-content: space-between;
   align-items: center;
   padding: 0.625rem 0.875rem;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--bg-secondary);
 }
 
 .version-info {
@@ -281,18 +283,18 @@ function formatDate(iso: string): string {
 .version-label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .version-date {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .btn-restore {
   padding: 0.375rem 0.75rem;
   font-size: 0.8rem;
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 4px;
@@ -300,12 +302,12 @@ function formatDate(iso: string): string {
 }
 
 .btn-restore:hover {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .version-empty {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   text-align: center;
   padding: 1rem;
 }
@@ -323,31 +325,31 @@ function formatDate(iso: string): string {
 }
 
 .btn-version {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .btn-version:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 .btn-version.active {
-  background: #eef4ff;
-  color: #0066cc;
+  background: var(--bg-muted);
+  color: var(--accent);
 }
 
 .btn-save-version {
-  background: #10b981;
+  background: var(--success);
   color: #ffffff;
 }
 .btn-save-version:hover {
-  background: #059669;
+  background: var(--success-hover);
 }
 
 .btn-export-agent {
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
 }
 .btn-export-agent:hover {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .plan-empty {
@@ -356,7 +358,7 @@ function formatDate(iso: string): string {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .empty-icon {

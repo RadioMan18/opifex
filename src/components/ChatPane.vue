@@ -202,7 +202,7 @@ function formatTime(iso: string): string {
 .btn-retry {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #dc2626;
+  background: var(--danger);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -211,12 +211,12 @@ function formatTime(iso: string): string {
 }
 
 .btn-retry:hover {
-  background: #b91c1c;
+  background: var(--danger-hover);
 }
 
 .build-error {
   font-size: 0.8rem;
-  color: #dc2626;
+  color: var(--danger);
   margin-left: 0.75rem;
   max-width: 300px;
   overflow: hidden;
@@ -227,9 +227,9 @@ function formatTime(iso: string): string {
 .btn-new-chat {
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
@@ -240,16 +240,17 @@ function formatTime(iso: string): string {
 }
 
 .btn-new-chat:hover {
-  background: #e5e7eb;
-  border-color: #9ca3af;
+  background: var(--border-hover);
+  border-color: var(--border-hover);
 }
 
 .model-select {
   padding: 0.4rem 0.75rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   font-size: 0.9rem;
-  background: #ffffff;
+  background: var(--input-bg);
+  color: var(--text-primary);
   min-width: 140px;
 }
 
@@ -262,7 +263,7 @@ function formatTime(iso: string): string {
 
 .empty-state {
   text-align: center;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .empty-icon {
@@ -312,14 +313,14 @@ function formatTime(iso: string): string {
 }
 
 .message.user .message-avatar {
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
 }
 
 .message.assistant .message-avatar {
-  background: #f1f1f3;
-  color: #6b7280;
-  border: 1px solid #e5e5e5;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .message-content {
@@ -347,15 +348,15 @@ function formatTime(iso: string): string {
 }
 
 .message.user .message-text {
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border-bottom-right-radius: 4px;
 }
 
 .message.assistant .message-text {
-  background: #f1f1f3;
-  color: #1a1a1a;
-  border: 1px solid #e5e5e5;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 
@@ -363,7 +364,7 @@ function formatTime(iso: string): string {
   display: flex;
   gap: 0.5rem;
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .message.user .message-meta {
@@ -375,7 +376,7 @@ function formatTime(iso: string): string {
 }
 
 .streaming-indicator {
-  color: #0066cc;
+  color: var(--accent);
   font-size: 0.7rem;
   display: inline-flex;
   align-items: center;
@@ -412,8 +413,8 @@ function formatTime(iso: string): string {
 
 .chat-input-area {
   padding: 1rem;
-  border-top: 1px solid #e5e5e5;
-  background: #fafafa;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
   display: flex;
   gap: 0.75rem;
   align-items: flex-end;
@@ -425,22 +426,24 @@ function formatTime(iso: string): string {
   min-height: 44px;
   max-height: 120px;
   padding: 0.625rem 0.875rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 0.95rem;
   resize: vertical;
   font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .chat-textarea:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: var(--accent);
 }
 
 .btn-send {
   padding: 0.625rem 1.25rem;
   font-size: 0.95rem;
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -449,22 +452,22 @@ function formatTime(iso: string): string {
 }
 
 .btn-send:hover:not(:disabled) {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .btn-send:disabled {
-  background: #9ca3af;
+  background: var(--border-hover);
   cursor: not-allowed;
 }
 
 .message-plan-card {
   margin-top: 0.75rem;
   padding: 0.75rem 1rem;
-  background: rgba(0, 102, 204, 0.06);
-  border: 1px solid rgba(0, 102, 204, 0.2);
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 8px;
   font-size: 0.88rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .plan-card-header {
@@ -472,7 +475,7 @@ function formatTime(iso: string): string {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  color: #0066cc;
+  color: var(--accent);
   margin-bottom: 0.4rem;
 }
 
@@ -497,7 +500,7 @@ function formatTime(iso: string): string {
 .more-steps {
   list-style-type: none;
   font-style: italic;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 0.2rem;
 }
 

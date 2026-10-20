@@ -83,7 +83,7 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
@@ -94,7 +94,7 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 .library-section h4 {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 1.5rem 0 0.75rem 0;
@@ -115,16 +115,16 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
   justify-content: space-between;
   align-items: center;
   padding: 0.875rem 1rem;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  background: #ffffff;
+  background: var(--bg-secondary);
   transition: all 0.15s ease;
 }
 
 .agent-item:hover {
-  border-color: #0066cc;
-  background: #f0f7ff;
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
   transform: translateY(-1px);
 }
 
@@ -135,20 +135,20 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 .agent-name {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .agent-desc {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 0.125rem;
 }
 
 .agent-badge {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #0066cc;
-  background: #eef4ff;
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
   padding: 0.2rem 0.6rem;
   border-radius: 12px;
   margin-left: 0.5rem;
@@ -173,33 +173,33 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 }
 
 .btn-clone {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .btn-clone:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 
 .btn-export {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .btn-export:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 
 .btn-delete {
   background: transparent;
-  color: #dc2626;
+  color: var(--danger);
 }
 .btn-delete:hover {
-  background: #fef2f2;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .btn-new {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -208,12 +208,12 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 }
 
 .btn-new:hover {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .empty-state {
   padding: 2rem 1.5rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: 0.9rem;
   text-align: center;
 }

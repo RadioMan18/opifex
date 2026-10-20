@@ -44,10 +44,57 @@ const renameId = ref<string | null>(null);
 const renameName = ref('');
 const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
+const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
 
 onMounted(() => {
   init();
+  applyDarkMode();
+  setupKeyboardShortcuts();
 });
+
+function setupKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    // Don't trigger shortcuts when typing in inputs/textareas
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (isCtrlOrMeta && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      showCreateDialog.value = true;
+    } else if (isCtrlOrMeta && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (currentAgent.value && currentPlan.value) {
+        handleSaveVersion();
+      }
+    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      showImportDialog.value = true;
+    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      if (currentAgent.value) {
+        handleExportAgent(currentAgent.value.id);
+      }
+    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      if (currentAgent.value) {
+        handleDeleteAgent(currentAgent.value.id);
+      }
+    }
+  });
+}
+
+function toggleDarkMode() {
+  darkMode.value = !darkMode.value;
+  applyDarkMode();
+}
+
+function applyDarkMode() {
+  document.documentElement.setAttribute('data-theme', darkMode.value ? 'dark' : 'light');
+  localStorage.setItem('opifex-theme', darkMode.value ? 'dark' : 'light');
+}
 
 const currentAgent = computed(() => state.currentAgent);
 const currentPlan = computed(() => state.currentPlan);
@@ -63,6 +110,7 @@ const apiKeys = computed(() => state.apiKeys);
 const planVersions = computed(() => state.planVersions);
 const interviewing = computed(() => state.interviewing);
 const buildError = computed(() => state.buildError);
+const isDark = computed(() => darkMode.value);
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -271,6 +319,9 @@ async function handleDuplicateAgent(id: string) {
         >
           ↥ Home
         </button>
+        <button class="btn-dark-toggle" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
+          {{ isDark ? '☀️' : '🌙' }}
+        </button>
       </div>
     </div>
 
@@ -429,19 +480,62 @@ async function handleDuplicateAgent(id: string) {
 </template>
 
 <style scoped>
+:root {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #fafafa;
+  --bg-muted: #f3f4f6;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border: #e5e5e5;
+  --border-hover: #d1d5db;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --accent: #0066cc;
+  --accent-hover: #0052a3;
+  --success: #10b981;
+  --success-hover: #059669;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --shadow: rgba(0, 0, 0, 0.1);
+}
+
+.app-container.dark {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-muted: #475569;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #334155;
+  --border-hover: #475569;
+  --input-bg: #334155;
+  --input-border: #475569;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #22c55e;
+  --success-hover: #16a34a;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --shadow: rgba(0, 0, 0, 0.3);
+}
+
 .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: #f8fafc;
+  background: var(--bg-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text-primary);
 }
 
 .top-bar {
   padding: 0.875rem 1.5rem;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -461,13 +555,13 @@ async function handleDuplicateAgent(id: string) {
 .brand-name {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
 .brand-tagline {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -499,14 +593,14 @@ async function handleDuplicateAgent(id: string) {
   min-width: 320px;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
   overflow: hidden;
 }
 
 .divider {
   width: 1px;
-  background: #e2e8f0;
+  background: var(--border);
   flex-shrink: 0;
 }
 
@@ -522,18 +616,18 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .modal {
-  background: #ffffff;
+  background: var(--bg-secondary);
   padding: 1.75rem;
   border-radius: 12px;
   min-width: 420px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 20px 25px -5px var(--shadow), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .modal h3 {
   margin: 0 0 1.25rem 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .form-group {
@@ -544,22 +638,23 @@ async function handleDuplicateAgent(id: string) {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 0.375rem;
 }
 
 .form-input {
   width: 100%;
   padding: 0.625rem 0.875rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: inherit;
+  background: var(--input-bg);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: var(--accent);
 }
 
 .form-actions {
@@ -572,8 +667,8 @@ async function handleDuplicateAgent(id: string) {
 .btn-cancel {
   padding: 0.5625rem 1.125rem;
   font-size: 0.9rem;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -581,13 +676,13 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .btn-cancel:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 
 .btn-create {
   padding: 0.5625rem 1.125rem;
   font-size: 0.9rem;
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -596,18 +691,18 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .btn-create:hover:not(:disabled) {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .btn-create:disabled {
-  background: #9ca3af;
+  background: var(--border-hover);
   cursor: not-allowed;
 }
 
 .version-save-bar {
   padding: 0.75rem 1.5rem;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -617,7 +712,7 @@ async function handleDuplicateAgent(id: string) {
 .version-save-bar label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -625,15 +720,16 @@ async function handleDuplicateAgent(id: string) {
 .version-input {
   flex: 1;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   font-size: 0.9rem;
   font-family: inherit;
+  background: var(--input-bg);
 }
 
 .version-input:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: var(--accent);
 }
 
 .btn-save-version-bar {
@@ -660,37 +756,38 @@ async function handleDuplicateAgent(id: string) {
 .provider-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .provider-select {
   padding: 0.4rem 0.75rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   font-size: 0.9rem;
-  background: #ffffff;
+  background: var(--input-bg);
+  color: var(--text-primary);
   min-width: 110px;
 }
 
 .provider-select:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: var(--accent);
 }
 
 .btn-api-key {
   padding: 0.5rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d1d1;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-api-key:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 
 .btn-import, .btn-new {
@@ -703,25 +800,25 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .btn-import {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 .btn-import:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
 }
 
 .btn-new {
-  background: #0066cc;
+  background: var(--accent);
   color: #ffffff;
 }
 .btn-new:hover {
-  background: #0052a3;
+  background: var(--accent-hover);
 }
 
 .btn-save-agent-header {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #10b981;
+  background: var(--success);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -732,20 +829,34 @@ async function handleDuplicateAgent(id: string) {
   gap: 0.375rem;
 }
 .btn-save-agent-header:hover {
-  background: #059669;
+  background: var(--success-hover);
 }
 
 .btn-home {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 .btn-home:hover {
-  background: #e5e7eb;
+  background: var(--border-hover);
+}
+
+.btn-dark-toggle {
+  padding: 0.5rem;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.btn-dark-toggle:hover {
+  background: var(--border-hover);
 }
 </style>
