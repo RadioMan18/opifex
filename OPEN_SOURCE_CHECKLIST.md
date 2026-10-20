@@ -64,14 +64,14 @@
 | Item | Status |
 |------|--------|
 | Repo made public | ✅ |
-| Topics/tags added | ⬜ *(GitHub web UI)* |
-| package.json metadata | ⬜ |
+| Topics/tags added | ✅ |
+| package.json metadata | ✅ |
 | Community health files | ✅ |
 | README badges | ✅ |
 | CI workflow | ✅ PR #1 merged |
 | Announcement | ⬜ |
 
-> **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) are GitHub web UI actions — visit https://github.com/RadioMan18/opifex/settings to complete them. CODEOWNERS is skipped per user preference.
+> **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) ✅ All completed on GitHub web UI. CODEOWNERS skipped per user preference.
 >
 > **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) exist at project root but need to be moved to `.github/` per Phase 4.
 >
