@@ -494,15 +494,15 @@ async function handleDuplicateAgent(id: string) {
 :root {
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #fafafa;
-  --bg-muted: #f3f4f6;
+  --bg-tertiary: #f1f5f9;
+  --bg-muted: #e2e8f0;
   --text-primary: #1a1a1a;
   --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
-  --border: #e5e5e5;
-  --border-hover: #d1d5db;
+  --text-muted: #64748b;
+  --border: #6b7280;
+  --border-hover: #64748b;
   --input-bg: #ffffff;
-  --input-border: #d1d5db;
+  --input-border: #6b7280;
   --accent: #0066cc;
   --accent-hover: #0052a3;
   --success: #10b981;
@@ -518,12 +518,12 @@ async function handleDuplicateAgent(id: string) {
   --bg-tertiary: #334155;
   --bg-muted: #475569;
   --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --border: #334155;
-  --border-hover: #475569;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border: #cbd5e1;
+  --border-hover: #a5b8c8;
   --input-bg: #334155;
-  --input-border: #475569;
+  --input-border: #cbd5e1;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --success: #22c55e;
@@ -789,33 +789,31 @@ async function handleDuplicateAgent(id: string) {
 
 .btn-api-key {
   padding: 0.5rem;
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--input-border);
+  background: #e2e8f0;
+  color: #1a1a1a;
+  border: 1px solid #6b7280;
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-api-key:hover {
-  background: var(--border-hover);
+  background: #cbd5e1;
 }
 
 .btn-import, .btn-new {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  border: none;
+  background: #e2e8f0;
+  color: #1a1a1a;
+  border: 1px solid #6b7280;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 
-.btn-import {
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-}
-.btn-import:hover {
-  background: var(--border-hover);
+.btn-import:hover, .btn-new:hover {
+  background: #cbd5e1;
 }
 
 .btn-new {
@@ -846,28 +844,28 @@ async function handleDuplicateAgent(id: string) {
 .btn-home {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border: none;
+  background: #e2e8f0;
+  color: #1a1a1a;
+  border: 1px solid #6b7280;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 .btn-home:hover {
-  background: var(--border-hover);
+  background: #cbd5e1;
 }
 
 .btn-dark-toggle {
   padding: 0.5rem;
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--input-border);
+  background: #e2e8f0;
+  color: #1a1a1a;
+  border: 1px solid #6b7280;
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-dark-toggle:hover {
-  background: var(--border-hover);
+  background: #cbd5e1;
 }
 </style>

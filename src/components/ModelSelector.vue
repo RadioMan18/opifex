@@ -97,9 +97,9 @@ function formatSize(bytes: number | null): string {
 
 .btn-pull {
   padding: 0.5rem;
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d1d1;
+  background: #e2e8f0;
+  color: #1a1a1a;
+  border: 1px solid #6b7280;
   border-radius: 6px;
   cursor: pointer;
 }
