@@ -14,6 +14,7 @@ pub struct PlanVersion {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SavePlanVersionInput {
     pub agent_id: String,
     pub label: Option<String>,
@@ -21,6 +22,7 @@ pub struct SavePlanVersionInput {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RestorePlanVersionInput {
     pub version_id: String,
 }

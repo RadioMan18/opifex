@@ -492,44 +492,44 @@ async function handleDuplicateAgent(id: string) {
 
 <style scoped>
 :root {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --bg-muted: #e2e8f0;
-  --text-primary: #1a1a1a;
-  --text-secondary: #6b7280;
-  --text-muted: #64748b;
-  --border: #6b7280;
-  --border-hover: #64748b;
-  --input-bg: #ffffff;
-  --input-border: #6b7280;
-  --accent: #0066cc;
-  --accent-hover: #0052a3;
-  --success: #10b981;
-  --success-hover: #059669;
-  --danger: #dc2626;
-  --danger-hover: #b91c1c;
+  --bg-primary: #FAF8F5;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #FAF8F5;
+  --bg-muted: #FAF8F5;
+  --text-primary: #2D3139;
+  --text-secondary: #5A5F68;
+  --text-muted: #5A5F68;
+  --border: #4A4F58;
+  --border-hover: #4A4F58;
+  --input-bg: #FFFFFF;
+  --input-border: #4A4F58;
+  --accent: #7BB3E8;
+  --accent-hover: #639FD8;
+  --success: #88CF9E;
+  --success-hover: #88CF9E;
+  --danger: #F29393;
+  --danger-hover: #F29393;
   --shadow: rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] .app-container {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --bg-muted: #475569;
-  --text-primary: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border: #cbd5e1;
-  --border-hover: #a5b8c8;
-  --input-bg: #334155;
-  --input-border: #cbd5e1;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #22c55e;
-  --success-hover: #16a34a;
-  --danger: #ef4444;
-  --danger-hover: #dc2626;
+  --bg-primary: #16181B;
+  --bg-secondary: #202328;
+  --bg-tertiary: #16181B;
+  --bg-muted: #16181B;
+  --text-primary: #F1F3F5;
+  --text-secondary: #9BA1A9;
+  --text-muted: #9BA1A9;
+  --border: #6E737C;
+  --border-hover: #6E737C;
+  --input-bg: #202328;
+  --input-border: #6E737C;
+  --accent: #82BCF4;
+  --accent-hover: #98C8F7;
+  --success: #63B87E;
+  --success-hover: #63B87E;
+  --danger: #E06C6C;
+  --danger-hover: #E06C6C;
   --shadow: rgba(0, 0, 0, 0.3);
 }
 
@@ -539,13 +539,33 @@ async function handleDuplicateAgent(id: string) {
   height: 100vh;
   width: 100vw;
   background: var(--bg-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--text-primary);
+
+  /* Light mode CSS custom properties (applied unscoped via .app-container) */
+  --bg-primary: #FAF8F5;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #FAF8F5;
+  --bg-muted: #FAF8F5;
+  --text-primary: #2D3139;
+  --text-secondary: #5A5F68;
+  --text-muted: #5A5F68;
+  --border: #4A4F58;
+  --border-hover: #4A4F58;
+  --input-bg: #FFFFFF;
+  --input-border: #4A4F58;
+  --accent: #7BB3E8;
+  --accent-hover: #639FD8;
+  --success: #88CF9E;
+  --success-hover: #88CF9E;
+  --danger: #F29393;
+  --danger-hover: #F29393;
+  --shadow: rgba(0, 0, 0, 0.1);
 }
 
 .top-bar {
   padding: 0.875rem 1.5rem;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -789,47 +809,39 @@ async function handleDuplicateAgent(id: string) {
 
 .btn-api-key {
   padding: 0.5rem;
-  background: #e2e8f0;
-  color: #1a1a1a;
-  border: 1px solid #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-api-key:hover {
-  background: #cbd5e1;
+  background: #F0ECE6;
 }
 
 .btn-import, .btn-new {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #e2e8f0;
-  color: #1a1a1a;
-  border: 1px solid #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-import:hover, .btn-new:hover {
-  background: #cbd5e1;
-}
-
-.btn-new {
-  background: var(--accent);
-  color: #ffffff;
-}
-.btn-new:hover {
-  background: var(--accent-hover);
+  background: #F0ECE6;
 }
 
 .btn-save-agent-header {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--success);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
@@ -838,34 +850,34 @@ async function handleDuplicateAgent(id: string) {
   gap: 0.375rem;
 }
 .btn-save-agent-header:hover {
-  background: var(--success-hover);
+  background: #F0ECE6;
 }
 
 .btn-home {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #e2e8f0;
-  color: #1a1a1a;
-  border: 1px solid #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 .btn-home:hover {
-  background: #cbd5e1;
+  background: #F0ECE6;
 }
 
 .btn-dark-toggle {
   padding: 0.5rem;
-  background: #e2e8f0;
-  color: #1a1a1a;
-  border: 1px solid #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btn-dark-toggle:hover {
-  background: #cbd5e1;
+  background: #F0ECE6;
 }
 </style>

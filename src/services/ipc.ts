@@ -42,7 +42,7 @@ export async function exportAgent(id: string): Promise<string> {
 }
 
 export async function importAgent(agentJson: string): Promise<Agent> {
-  return invoke('import_agent', { agentJson });
+  return invoke('import_agent', { agent_json: agentJson });
 }
 
 export async function renameAgent(id: string, newName: string): Promise<Agent> {
@@ -174,6 +174,10 @@ export async function ollamaSetApiKey(provider: string, apiKey: string): Promise
 
 export async function createConversation(input: CreateConversationInput): Promise<Conversation> {
   return invoke('create_conversation', { input });
+}
+
+export async function loadUserAgents(): Promise<string[]> {
+  return invoke('load_user_agents');
 }
 
 export async function getConversation(id: string): Promise<Conversation | null> {

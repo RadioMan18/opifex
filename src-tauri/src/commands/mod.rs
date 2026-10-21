@@ -6,7 +6,7 @@ mod plan;
 
 #[allow(dead_code)]
 pub use agent::{
-    create_agent, delete_agent, get_agent, list_agents, seed_starter_agents, update_agent,
+    create_agent, delete_agent, export_agent, get_agent, import_agent, list_agents, load_user_agents, seed_starter_agents, update_agent,
 };
 #[allow(dead_code)]
 pub use conversation::{

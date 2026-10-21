@@ -20,6 +20,7 @@ import {
   renameAgent as ipcRenameAgent,
   duplicateAgent as ipcDuplicateAgent,
   seedStarterAgents as ipcSeedStarterAgents,
+  loadUserAgents as ipcLoadUserAgents,
   ollamaListModels as ipcOllamaListModels,
   ollamaPullModel as ipcOllamaPullModel,
   ollamaChatStream as ipcOllamaChatStream,
@@ -184,6 +185,7 @@ export function useAgentStore() {
     state.loading = true;
     try {
       await ipcSeedStarterAgents();
+      await ipcLoadUserAgents();
       await loadAgents();
       await loadModels();
       await loadDefaultModel();
@@ -417,7 +419,12 @@ export function useAgentStore() {
     cleanupStream();
 
     if (!state.currentConversationId) {
-      await createNewConversation();
+      try {
+        await createNewConversation();
+      } catch (err: any) {
+        state.error = err?.message || String(err);
+        return;
+      }
     }
 
     const userMessage: Message = {

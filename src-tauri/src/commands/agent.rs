@@ -4,10 +4,61 @@ use rusqlite::params;
 use rusqlite::types::Type;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
 
+const MANIFEST_JSON: &str = include_str!("../../seeds/agents.manifest.json");
+const CUSTOMER_SUPPORT_JSON: &str = include_str!("../../seeds/customer_support.json");
+const RESEARCH_AGENT_JSON: &str = include_str!("../../seeds/research_agent.json");
+const RAG_KNOWLEDGE_AGENT_JSON: &str = include_str!("../../seeds/rag_knowledge_agent.json");
+const CODE_REVIEW_AGENT_JSON: &str = include_str!("../../seeds/code_review_agent.json");
+const CONTENT_WRITER_AGENT_JSON: &str = include_str!("../../seeds/content_writer_agent.json");
+
+fn seed_file_content(name: &str) -> Option<&'static str> {
+    match name {
+        "customer_support.json" => Some(CUSTOMER_SUPPORT_JSON),
+        "research_agent.json" => Some(RESEARCH_AGENT_JSON),
+        "rag_knowledge_agent.json" => Some(RAG_KNOWLEDGE_AGENT_JSON),
+        "code_review_agent.json" => Some(CODE_REVIEW_AGENT_JSON),
+        "content_writer_agent.json" => Some(CONTENT_WRITER_AGENT_JSON),
+        _ => None,
+    }
+}
+
+fn validate_agent_spec(spec: &Value) -> Result<(), String> {
+    let goal = spec
+        .get("goal")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Invalid agent: missing required field 'goal'".to_string())?;
+    if goal.trim().is_empty() {
+        return Err("Invalid agent: field 'goal' must not be empty".to_string());
+    }
+    if spec.get("steps").is_none() {
+        return Err("Invalid agent: missing required field 'steps'".to_string());
+    }
+    Ok(())
+}
+
+fn user_agents_dir() -> Result<PathBuf, String> {
+    if cfg!(target_os = "windows") {
+        std::env::var("APPDATA")
+            .map(|p| PathBuf::from(p).join("Opifex").join("agents"))
+            .map_err(|_| "APPDATA environment variable not set".to_string())
+    } else if cfg!(target_os = "macos") {
+        std::env::var("HOME")
+            .map(|p| PathBuf::from(p).join("Library/Application Support/Opifex/agents"))
+            .map_err(|_| "HOME environment variable not set".to_string())
+    } else {
+        std::env::var("HOME")
+            .map(|p| PathBuf::from(p).join(".local/share/Opifex/agents"))
+            .map_err(|_| "HOME environment variable not set".to_string())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Agent {
     pub id: String,
     pub name: String,
@@ -20,6 +71,7 @@ pub struct Agent {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAgentInput {
     pub name: String,
     pub description: Option<String>,
@@ -29,6 +81,7 @@ pub struct CreateAgentInput {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateAgentInput {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
@@ -204,6 +257,58 @@ pub fn delete_agent(state: State<'_, DbState>, id: String) -> Result<bool, Strin
 }
 
 #[tauri::command]
+pub fn export_agent(state: State<'_, DbState>, id: String) -> Result<String, String> {
+    let agent = get_agent(state, id.clone())?
+        .ok_or_else(|| format!("Agent not found: {}", id))?;
+    serde_json::to_string(&agent).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn import_agent(state: State<'_, DbState>, agent_json: String) -> Result<Agent, String> {
+    let mut agent: Agent = serde_json::from_str(&agent_json).map_err(|e| e.to_string())?;
+
+    // Validate required AgentPlan fields
+    let spec_value = &agent.spec_json;
+    let goal = spec_value.get("goal")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Invalid agent: missing required field 'goal'".to_string())?;
+    if goal.trim().is_empty() {
+        return Err("Invalid agent: field 'goal' must not be empty".to_string());
+    }
+    if spec_value.get("steps").is_none() {
+        return Err("Invalid agent: missing required field 'steps'".to_string());
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    agent.id = id;
+    agent.created_at = now.clone();
+    agent.updated_at = now.clone();
+    agent.is_starter = false;
+
+    let spec_json = serde_json::to_string(&agent.spec_json).map_err(|e| e.to_string())?;
+
+    let conn = &*state.conn.lock().unwrap();
+    conn.execute(
+        "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            agent.id,
+            agent.name,
+            agent.description,
+            spec_json,
+            agent.model,
+            agent.is_starter as i32,
+            now,
+            now
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(agent)
+}
+
+#[tauri::command]
 pub fn seed_starter_agents(state: State<'_, DbState>) -> Result<Vec<String>, String> {
     let conn = &*state.conn.lock().unwrap();
 
@@ -219,77 +324,112 @@ pub fn seed_starter_agents(state: State<'_, DbState>) -> Result<Vec<String>, Str
     }
 
     let now = chrono::Utc::now().to_rfc3339();
-    let starters: Vec<(&str, &str, serde_json::Value)> = vec![
-        (
-            "Customer Support Agent",
-            "Answers customer inquiries and handles support tickets, grounded in company FAQ and product documentation.",
-            serde_json::json!({
-                "goal": "Provide helpful, accurate customer support by resolving inquiries and managing support tickets",
-                "steps": ["Greet customer", "Understand issue", "Search knowledge base for relevant answers", "Provide solution or escalate", "Follow up and confirm resolution"],
-                "tools": ["knowledge_base", "ticket_system", "customer_database"],
-                "knowledge_sources": ["faq.md", "product_docs.pdf", "support_runbooks.md"],
-                "triggers": ["customer_message", "new_support_ticket", "escalation_request"],
-                "outputs": ["customer_response", "support_ticket", "escalation_notice"]
-            }),
-        ),
-        (
-            "Research Agent",
-            "Conducts web research and produces structured reports with citations on any business topic.",
-            serde_json::json!({
-                "goal": "Research a topic thoroughly and produce a structured, cited report",
-                "steps": ["Clarify research scope and questions", "Perform web searches across multiple sources", "Extract and verify key facts", "Synthesize findings into a structured report", "Add citations and source links"],
-                "tools": ["web_search", "document_summarizer", "citation_formatter"],
-                "knowledge_sources": [],
-                "triggers": ["research_request", "market_analysis_request", "competitor_research_request"],
-                "outputs": ["research_report", "source_citations", "key_findings_summary"]
-            }),
-        ),
-        (
-            "RAG Knowledge Agent",
-            "Answers questions by searching and reasoning over the company's internal knowledge base and documents.",
-            serde_json::json!({
-                "goal": "Answer employee questions accurately using internal company documents and knowledge base",
-                "steps": ["Receive user question", "Search internal knowledge base for relevant documents", "Retrieve and rank most relevant passages", "Synthesize answer grounded in retrieved sources", "Provide answer with source references"],
-                "tools": ["document_search", "semantic_search", "qa_over_docs"],
-                "knowledge_sources": ["company_handbook.pdf", "policy_documents.md", "technical_docs.md", "onboarding_guide.md"],
-                "triggers": ["employee_question", "policy_lookup", "procedure_inquiry"],
-                "outputs": ["answered_question", "source_references", "confidence_score"]
-            }),
-        ),
-        (
-            "Code Review Agent",
-            "Reviews pull requests, identifies issues, suggests fixes, and recommends approval or changes.",
-            serde_json::json!({
-                "goal": "Improve code quality by reviewing pull requests and providing actionable feedback",
-                "steps": ["Review pull request code changes", "Identify bugs, security issues, and style violations", "Suggest specific code fixes and improvements", "Check test coverage and documentation", "Recommend approve, request changes, or comment"],
-                "tools": ["linter", "static_analyzer", "test_runner", "github_api"],
-                "knowledge_sources": ["coding_standards.md", "security_guidelines.md", "review_checklist.md"],
-                "triggers": ["pull_request_opened", "pull_request_updated", "code_review_request"],
-                "outputs": ["review_comments", "approval_status", "suggested_changes", "severity_flags"]
-            }),
-        ),
-        (
-            "Content Writer Agent",
-            "Drafts on-brand internal and external communications including announcements, newsletters, and press releases.",
-            serde_json::json!({
-                "goal": "Write engaging, on-brand content for internal and external audiences",
-                "steps": ["Understand content objective and target audience", "Research key messages and brand guidelines", "Draft outline and structure", "Write and refine content", "Review against brand voice and style guide"],
-                "tools": ["grammar_checker", "brand_voice_checker", "word_counter", "readability_analyzer"],
-                "knowledge_sources": ["brand_voice_guide.md", "style_guide.md", "previous_campaigns.md", "messaging_framework.md"],
-                "triggers": ["content_request", "newsletter_request", "press_release_request", "announcement_request"],
-                "outputs": ["content_draft", "final_copy", "headline_options", "call_to_action_suggestions"]
-            }),
-        ),
-    ];
+    let manifest: Value = serde_json::from_str(MANIFEST_JSON)
+        .map_err(|e| format!("Failed to parse seed manifest: {}", e))?;
+
+    let starter_files: Vec<String> = manifest["starters"]
+        .as_array()
+        .ok_or("Seed manifest missing 'starters' array")?
+        .iter()
+        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        .collect();
 
     let mut created = Vec::new();
-    for (name, description, spec) in starters {
+    for file_name in starter_files {
+        let content = seed_file_content(&file_name)
+            .ok_or_else(|| format!("Seed file not embedded: {}", file_name))?;
+
+        let mut agent: Agent = serde_json::from_str(content)
+            .map_err(|e| format!("Failed to parse {}: {}", file_name, e))?;
+
+        validate_agent_spec(&agent.spec_json)?;
+
         let id = Uuid::new_v4().to_string();
-        let spec_json = serde_json::to_string(&spec).map_err(|e| e.to_string())?;
+        agent.id = id.clone();
+        agent.created_at = now.clone();
+        agent.updated_at = now.clone();
+        agent.is_starter = true;
+
+        let spec_json = serde_json::to_string(&agent.spec_json).map_err(|e| e.to_string())?;
+
         conn.execute(
             "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![id, name, description, spec_json, "ollama", 1, now, now],
+            params![
+                agent.id,
+                agent.name,
+                agent.description,
+                spec_json,
+                agent.model,
+                agent.is_starter as i32,
+                now,
+                now
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        created.push(id);
+    }
+
+    Ok(created)
+}
+
+#[tauri::command]
+pub fn load_user_agents(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    let user_agents_dir = user_agents_dir()?;
+
+    if !user_agents_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let conn = &*state.conn.lock().unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut created = Vec::new();
+
+    for entry in std::fs::read_dir(&user_agents_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let mut agent: Agent = serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
+
+        validate_agent_spec(&agent.spec_json)?;
+
+        let mut stmt = conn.prepare("SELECT id FROM agents WHERE name = ?1 AND is_starter = 0").map_err(|e| e.to_string())?;
+        let existing: Option<String> = stmt
+            .query_row(params![agent.name], |row| row.get(0))
+            .optional()
+            .map_err(|e| e.to_string())?;
+
+        if existing.is_some() {
+            continue;
+        }
+
+        let id = Uuid::new_v4().to_string();
+        agent.id = id.clone();
+        agent.created_at = now.clone();
+        agent.updated_at = now.clone();
+        agent.is_starter = false;
+
+        let spec_json = serde_json::to_string(&agent.spec_json).map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                agent.id,
+                agent.name,
+                agent.description,
+                spec_json,
+                agent.model,
+                agent.is_starter as i32,
+                now,
+                now
+            ],
         )
         .map_err(|e| e.to_string())?;
         created.push(id);

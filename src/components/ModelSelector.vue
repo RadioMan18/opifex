@@ -65,7 +65,7 @@ function formatSize(bytes: number | null): string {
 .model-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -78,34 +78,35 @@ function formatSize(bytes: number | null): string {
 .model-select {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d1d1;
+  border: 3px solid var(--input-border);
   border-radius: 6px;
   font-size: 0.9rem;
-  background: #ffffff;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .model-select:focus {
   outline: none;
-  border-color: #0066cc;
+  border-color: var(--accent);
 }
 
 .model-size {
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin-left: 0.5rem;
 }
 
 .btn-pull {
   padding: 0.5rem;
-  background: #e2e8f0;
-  color: #1a1a1a;
-  border: 1px solid #6b7280;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
 }
 
 .btn-pull:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: #F0ECE6;
 }
 
 .btn-pull:disabled {
@@ -115,7 +116,7 @@ function formatSize(bytes: number | null): string {
 
 .loading-indicator {
   font-size: 0.75rem;
-  color: #0066cc;
+  color: var(--accent);
   animation: pulse 1.5s infinite;
 }
 

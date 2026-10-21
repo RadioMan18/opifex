@@ -187,31 +187,31 @@ function formatTime(iso: string): string {
 .btn-build {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--success);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-build:hover {
-  background: var(--success-hover);
+  background: #F0ECE6;
 }
 
 .btn-retry {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--danger);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-retry:hover {
-  background: var(--danger-hover);
+  background: #F0ECE6;
 }
 
 .build-error {
@@ -227,9 +227,9 @@ function formatTime(iso: string): string {
 .btn-new-chat {
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--input-border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
@@ -240,7 +240,7 @@ function formatTime(iso: string): string {
 }
 
 .btn-new-chat:hover {
-  background: var(--border-hover);
+  background: #F0ECE6;
   border-color: var(--border-hover);
 }
 
@@ -443,20 +443,20 @@ function formatTime(iso: string): string {
 .btn-send {
   padding: 0.625rem 1.25rem;
   font-size: 0.95rem;
-  background: var(--accent);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-send:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #F0ECE6;
 }
 
 .btn-send:disabled {
-  background: var(--border-hover);
+  background: var(--bg-tertiary);
   cursor: not-allowed;
 }
 

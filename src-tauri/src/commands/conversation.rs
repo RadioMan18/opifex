@@ -13,6 +13,7 @@ pub struct Conversation {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateConversationInput {
     pub agent_id: String,
     pub title: String,
@@ -29,6 +30,7 @@ pub struct Message {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SaveMessageInput {
     pub conversation_id: String,
     pub role: String,

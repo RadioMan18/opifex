@@ -1,0 +1,9 @@
+{
+  "starters": [
+    "customer_support.json",
+    "research_agent.json",
+    "rag_knowledge_agent.json",
+    "code_review_agent.json",
+    "content_writer_agent.json"
+  ]
+}

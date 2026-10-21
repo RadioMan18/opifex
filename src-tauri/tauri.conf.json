@@ -3,15 +3,12 @@
   "productName": "Opifex",
   "version": "0.1.0",
   "identifier": "com.opifex.app",
-  "build": {
-    "frontendDist": "dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "windows": {
-      "static-vc-runtime": true
-    }
-  },
+    "build": {
+      "frontendDist": "dist",
+      "devUrl": "http://localhost:5173",
+      "beforeDevCommand": "npm run dev",
+      "beforeBuildCommand": "npm run build"
+    },
   "app": {
     "windows": [
       {
