@@ -1,0 +1,17 @@
+{
+  "id": "code-review-agent",
+  "name": "Code Review Agent",
+  "description": "Reviews pull requests, identifies issues, suggests fixes, and recommends approval or changes.",
+  "specJson": {
+    "goal": "Improve code quality by reviewing pull requests and providing actionable feedback",
+    "steps": ["Review pull request code changes", "Identify bugs, security issues, and style violations", "Suggest specific code fixes and improvements", "Check test coverage and documentation", "Recommend approve, request changes, or comment"],
+    "tools": ["linter", "static_analyzer", "test_runner", "github_api"],
+    "knowledgeSources": ["coding_standards.md", "security_guidelines.md", "review_checklist.md"],
+    "triggers": ["pull_request_opened", "pull_request_updated", "code_review_request"],
+    "outputs": ["review_comments", "approval_status", "suggested_changes", "severity_flags"]
+  },
+  "model": "ollama",
+  "isStarter": true,
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "updatedAt": "2026-10-20T00:00:00.000Z"
+}

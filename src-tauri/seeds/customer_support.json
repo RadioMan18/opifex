@@ -1,0 +1,17 @@
+{
+  "id": "customer-support-agent",
+  "name": "Customer Support Agent",
+  "description": "Answers customer inquiries and handles support tickets, grounded in company FAQ and product documentation.",
+  "specJson": {
+    "goal": "Provide helpful, accurate customer support by resolving inquiries and managing support tickets",
+    "steps": ["Greet customer", "Understand issue", "Search knowledge base for relevant answers", "Provide solution or escalate", "Follow up and confirm resolution"],
+    "tools": ["knowledge_base", "ticket_system", "customer_database"],
+    "knowledgeSources": ["faq.md", "product_docs.pdf", "support_runbooks.md"],
+    "triggers": ["customer_message", "new_support_ticket", "escalation_request"],
+    "outputs": ["customer_response", "support_ticket", "escalation_notice"]
+  },
+  "model": "ollama",
+  "isStarter": true,
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "updatedAt": "2026-10-20T00:00:00.000Z"
+}

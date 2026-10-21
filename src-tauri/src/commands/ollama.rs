@@ -56,6 +56,7 @@ struct OllamaStreamChunk {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct OllamaStreamMessage {
     role: String,
     content: String,
@@ -98,57 +99,7 @@ pub struct SetProviderInput {
 #[derive(Serialize, Deserialize)]
 pub struct SetApiKeyInput {
     pub provider: String,
-    pub apiKey: String,
-}
-
-// OpenAI request/response
-#[derive(Serialize)]
-struct OpenAIChatRequest {
-    model: String,
-    messages: Vec<OpenAIMessage>,
-    stream: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct OpenAIMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Deserialize)]
-struct OpenAIChatResponse {
-    choices: Vec<OpenAIChoice>,
-}
-
-#[derive(Deserialize)]
-struct OpenAIChoice {
-    message: OpenAIMessage,
-}
-
-// Anthropic request/response
-#[derive(Serialize)]
-struct AnthropicChatRequest {
-    model: String,
-    max_tokens: u32,
-    messages: Vec<AnthropicMessage>,
-    system: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct AnthropicMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Deserialize)]
-struct AnthropicChatResponse {
-    content: Vec<AnthropicContentBlock>,
-}
-
-#[derive(Deserialize)]
-struct AnthropicContentBlock {
-    r#type: String,
-    text: Option<String>,
+    pub api_key: String,
 }
 
 #[tauri::command]
@@ -193,7 +144,7 @@ pub async fn ollama_chat_stream(
     app: AppHandle,
     provider: String,
     model: String,
-    apiKey: Option<String>,
+    api_key: Option<String>,
     messages: Vec<OllamaMessage>,
 ) -> Result<(), String> {
     let provider: LlmProvider = provider.parse().map_err(|e: String| e.to_string())?;
@@ -203,11 +154,11 @@ pub async fn ollama_chat_stream(
             ollama_chat_stream_impl(app, model, messages).await
         }
         LlmProvider::OpenAI => {
-            let key = apiKey.ok_or_else(|| "OpenAI API key not configured".to_string())?;
+            let key = api_key.ok_or_else(|| "OpenAI API key not configured".to_string())?;
             openai_chat_stream_impl(app, model, key, messages).await
         }
         LlmProvider::Anthropic => {
-            let key = apiKey.ok_or_else(|| "Anthropic API key not configured".to_string())?;
+            let key = api_key.ok_or_else(|| "Anthropic API key not configured".to_string())?;
             anthropic_chat_stream_impl(app, model, key, messages).await
         }
     }
@@ -224,31 +175,6 @@ async fn ollama_chat_stream_impl(
         .json(&serde_json::json!({
             "model": model,
             "messages": messages,
-            "format": {
-                "type": "object",
-                "properties": {
-                    "response": { "type": "string" },
-                    "plan": {
-                        "type": "object",
-                        "properties": {
-                            "goal": { "type": "string" },
-                            "steps": { "type": "array", "items": { "type": "string" } },
-                            "tools": { "type": "array", "items": { "type": "string" } },
-                            "knowledgeSources": { "type": "array", "items": { "type": "string" } },
-                            "triggers": { "type": "array", "items": { "type": "string" } },
-                            "outputs": { "type": "array", "items": { "type": "string" } }
-                        },
-                        "required": ["goal", "steps", "tools", "knowledgeSources", "triggers", "outputs"],
-                        "additionalProperties": false
-                    }
-                },
-                "required": ["response", "plan"],
-                "additionalProperties": false
-            },
-            "options": {
-                "temperature": 0,
-                "repeat_penalty": 1.2
-            },
             "stream": true
         }))
         .send()
@@ -341,9 +267,9 @@ async fn openai_chat_stream_impl(
     messages: Vec<OllamaMessage>,
 ) -> Result<(), String> {
     let client = AsyncClient::new();
-    let openai_messages: Vec<OpenAIMessage> = messages
+    let openai_messages: Vec<OllamaMessage> = messages
         .into_iter()
-        .map(|m| OpenAIMessage { role: m.role, content: m.content })
+        .map(|m| OllamaMessage { role: m.role, content: m.content })
         .collect();
 
     let resp = client
@@ -454,13 +380,13 @@ async fn anthropic_chat_stream_impl(
     messages: Vec<OllamaMessage>,
 ) -> Result<(), String> {
     let client = AsyncClient::new();
-    let (system, anthropic_messages): (Option<String>, Vec<AnthropicMessage>) = messages
+    let (system, anthropic_messages): (Option<String>, Vec<OllamaMessage>) = messages
         .into_iter()
         .fold((None, Vec::new()), |(mut sys, mut msgs), m| {
             if m.role == "system" {
                 sys = Some(m.content);
             } else {
-                msgs.push(AnthropicMessage { role: m.role, content: m.content });
+                msgs.push(OllamaMessage { role: m.role, content: m.content });
             }
             (sys, msgs)
         });
@@ -631,9 +557,9 @@ fn ollama_chat_impl(model: String, messages: Vec<OllamaMessage>) -> Result<Ollam
 
 fn openai_chat_impl(model: String, messages: Vec<OllamaMessage>, api_key: String) -> Result<OllamaChatOutput, String> {
     let client = BlockingClient::new();
-    let openai_messages: Vec<OpenAIMessage> = messages
+    let openai_messages: Vec<OllamaMessage> = messages
         .into_iter()
-        .map(|m| OpenAIMessage { role: m.role, content: m.content })
+        .map(|m| OllamaMessage { role: m.role, content: m.content })
         .collect();
 
     let resp: serde_json::Value = client
@@ -664,13 +590,13 @@ fn openai_chat_impl(model: String, messages: Vec<OllamaMessage>, api_key: String
 
 fn anthropic_chat_impl(model: String, messages: Vec<OllamaMessage>, api_key: String) -> Result<OllamaChatOutput, String> {
     let client = BlockingClient::new();
-    let (system, anthropic_messages): (Option<String>, Vec<AnthropicMessage>) = messages
+    let (system, anthropic_messages): (Option<String>, Vec<OllamaMessage>) = messages
         .into_iter()
         .fold((None, Vec::new()), |(mut sys, mut msgs), m| {
             if m.role == "system" {
                 sys = Some(m.content);
             } else {
-                msgs.push(AnthropicMessage { role: m.role, content: m.content });
+                msgs.push(OllamaMessage { role: m.role, content: m.content });
             }
             (sys, msgs)
         });
@@ -816,7 +742,7 @@ pub fn ollama_set_api_key(
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)
          ON CONFLICT(key) DO UPDATE SET value = ?2",
-        params![key_name, input.apiKey],
+        params![key_name, input.api_key],
     )
     .map_err(|e| e.to_string())?;
 

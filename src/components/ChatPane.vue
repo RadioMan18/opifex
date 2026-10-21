@@ -148,19 +148,19 @@ function formatTime(iso: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #ffffff;
+  background: var(--bg-secondary);
   border-right: 1px solid #e5e5e5;
   overflow: hidden;
 }
 
 .chat-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-shrink: 0;
-  background: #fafafa;
+  background: var(--bg-tertiary);
 }
 
 .chat-icon {
@@ -171,12 +171,12 @@ function formatTime(iso: string): string {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .chat-subtitle {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 0.125rem;
 }
 
@@ -187,31 +187,31 @@ function formatTime(iso: string): string {
 .btn-build {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: #10b981;
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-build:hover {
-  background: #059669;
+  background: #F0ECE6;
 }
 
 .btn-retry {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--danger);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-retry:hover {
-  background: var(--danger-hover);
+  background: #F0ECE6;
 }
 
 .build-error {
@@ -227,9 +227,9 @@ function formatTime(iso: string): string {
 .btn-new-chat {
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border: 1px solid var(--input-border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
@@ -240,7 +240,7 @@ function formatTime(iso: string): string {
 }
 
 .btn-new-chat:hover {
-  background: var(--border-hover);
+  background: #F0ECE6;
   border-color: var(--border-hover);
 }
 
@@ -443,20 +443,20 @@ function formatTime(iso: string): string {
 .btn-send {
   padding: 0.625rem 1.25rem;
   font-size: 0.95rem;
-  background: var(--accent);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 3px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-send:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #F0ECE6;
 }
 
 .btn-send:disabled {
-  background: var(--border-hover);
+  background: var(--bg-tertiary);
   cursor: not-allowed;
 }
 

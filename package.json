@@ -4,6 +4,25 @@
   "version": "1.0.0",
   "description": "Opifex - Agent Builder for businesses",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RadioMan18/opifex.git"
+  },
+  "author": "Opifex Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/RadioMan18/opifex",
+  "bugs": "https://github.com/RadioMan18/opifex/issues",
+  "keywords": [
+    "tauri",
+    "vue",
+    "ai-agent",
+    "agent-builder",
+    "desktop-app",
+    "ollama",
+    "open-source",
+    "windows",
+    "rust"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

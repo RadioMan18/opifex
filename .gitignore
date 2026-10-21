@@ -36,3 +36,4 @@ src-tauri/target/release/bundle/
 # Misc
 *.log
 .turbo/
+marketing.md

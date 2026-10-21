@@ -1,5 +1,12 @@
 # Opifex — AI Agent Builder for Businesses
 
+[![License](https://img.shields.io/github/license/RadioMan18/opifex)](https://github.com/RadioMan18/opifex/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/RadioMan18/opifex)](https://github.com/RadioMan18/opifex/stargazers)
+[![Issues](https://img.shields.io/github/issues/RadioMan18/opifex)](https://github.com/RadioMan18/opifex/issues)
+[![Forks](https://img.shields.io/github/forks/RadioMan18/opifex)](https://github.com/RadioMan18/opifex/network/members)
+[![Tauri v2](https://img.shields.io/badge/tauri-v2-blue)](https://tauri.app/)
+[![Vue 3](https://img.shields.io/badge/vue-3-green)](https://vuejs.org/)
+
 Opifex is a desktop application (Tauri v2 + Rust backend, Vue 3 frontend) for building AI agents through a chat-driven wizard interface. It helps AI practitioners and corporate teams design, configure, and manage AI agents via natural conversation with "Oppy," the Opifex Wizard.
 
 ## Table of Contents

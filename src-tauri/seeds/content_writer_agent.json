@@ -1,0 +1,17 @@
+{
+  "id": "content-writer-agent",
+  "name": "Content Writer Agent",
+  "description": "Drafts on-brand internal and external communications including announcements, newsletters, and press releases.",
+  "specJson": {
+    "goal": "Write engaging, on-brand content for internal and external audiences",
+    "steps": ["Understand content objective and target audience", "Research key messages and brand guidelines", "Draft outline and structure", "Write and refine content", "Review against brand voice and style guide"],
+    "tools": ["grammar_checker", "brand_voice_checker", "word_counter", "readability_analyzer"],
+    "knowledgeSources": ["brand_voice_guide.md", "style_guide.md", "previous_campaigns.md", "messaging_framework.md"],
+    "triggers": ["content_request", "newsletter_request", "press_release_request", "announcement_request"],
+    "outputs": ["content_draft", "final_copy", "headline_options", "call_to_action_suggestions"]
+  },
+  "model": "ollama",
+  "isStarter": true,
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "updatedAt": "2026-10-20T00:00:00.000Z"
+}

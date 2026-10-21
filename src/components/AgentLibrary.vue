@@ -199,16 +199,16 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 .btn-new {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
-  background: var(--accent);
-  color: #ffffff;
-  border: none;
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-new:hover {
-  background: var(--accent-hover);
+  background: var(--bg-tertiary);
 }
 
 .empty-state {

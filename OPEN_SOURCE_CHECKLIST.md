@@ -14,36 +14,36 @@
 
 ## Phase 3: Package.json Metadata
 
-- [ ] Add `repository` field:
+- [x] Add `repository` field:
   ```json
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RadioMan18/opifex.git"
   }
   ```
-- [ ] Add `author` field with name and email
-- [ ] Add `license`: `"MIT"`
-- [ ] Add `homepage`: `"https://github.com/RadioMan18/opifex"`
-- [ ] Add `bugs`: `"https://github.com/RadioMan18/opifex/issues"`
-- [ ] Add keywords: `["tauri", "vue", "ai-agent", "agent-builder", "desktop"]`
+- [x] Add `author` field with name and email
+- [x] Add `license`: `"MIT"`
+- [x] Add `homepage`: `"https://github.com/RadioMan18/opifex"`
+- [x] Add `bugs`: `"https://github.com/RadioMan18/opifex/issues"`
+- [x] Add keywords: `["tauri", "vue", "ai-agent", "agent-builder", "desktop"]`
 
 ## Phase 4: Community Health Files
 
-- [ ] `.github/CODE_OF_CONDUCT.md` — Contributor Covenant
-- [ ] `.github/CONTRIBUTING.md` — How to report bugs, suggest features, submit PRs
-- [ ] `.github/SECURITY.md` — Responsible disclosure process
-- [ ] `.github/ISSUE_TEMPLATE/bug_report.md`
-- [ ] `.github/ISSUE_TEMPLATE/feature_request.md`
-- [ ] `.github/PULL_REQUEST_TEMPLATE.md`
+- [x] `.github/CODE_OF_CONDUCT.md` — Contributor Covenant
+- [x] `.github/CONTRIBUTING.md` — How to report bugs, suggest features, submit PRs
+- [x] `.github/SECURITY.md` — Responsible disclosure process
+- [x] `.github/ISSUE_TEMPLATE/bug_report.md`
+- [x] `.github/ISSUE_TEMPLATE/feature_request.md`
+- [x] `.github/PULL_REQUEST_TEMPLATE.md`
 
 ## Phase 5: README.md Badges
 
-- [ ] License badge: `![License](https://img.shields.io/github/license/RadioMan18/opifex)`
-- [ ] Stars badge: `![Stars](https://img.shields.io/github/stars/RadioMan18/opifex)`
-- [ ] Issues badge: `![Issues](https://img.shields.io/github/issues/RadioMan18/opifex)`
-- [ ] Forks badge: `![Forks](https://img.shields.io/github/forks/RadioMan18/opifex)`
-- [ ] Tauri badge: `![Tauri](https://img.shields.io/badge/tauri-v2-blue)`
-- [ ] Vue badge: `![Vue](https://img.shields.io/badge/vue-3-green)`
+- [x] License badge: `![License](https://img.shields.io/github/license/RadioMan18/opifex)`
+- [x] Stars badge: `![Stars](https://img.shields.io/github/stars/RadioMan18/opifex)`
+- [x] Issues badge: `![Issues](https://img.shields.io/github/issues/RadioMan18/opifex)`
+- [x] Forks badge: `![Forks](https://img.shields.io/github/forks/RadioMan18/opifex)`
+- [x] Tauri badge: `![Tauri](https://img.shields.io/badge/tauri-v2-blue)`
+- [x] Vue badge: `![Vue](https://img.shields.io/badge/vue-3-green)`
 
 ## Phase 6: CI/CD (Optional but Recommended)
 
@@ -64,15 +64,15 @@
 | Item | Status |
 |------|--------|
 | Repo made public | ✅ |
-| Topics/tags added | ⬜ *(GitHub web UI)* |
-| package.json metadata | ⬜ |
+| Topics/tags added | ✅ |
+| package.json metadata | ✅ |
 | Community health files | ✅ |
-| README badges | ⬜ |
-| CI workflow | 🔄 PR #1 open — needs merge |
+| README badges | ✅ |
+| CI workflow | ✅ PR #1 merged |
 | Announcement | ⬜ |
 
-> **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) are GitHub web UI actions — visit https://github.com/RadioMan18/opifex/settings to complete them. CODEOWNERS is skipped per user preference.
+> **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) ✅ All completed on GitHub web UI. CODEOWNERS skipped per user preference.
 >
-> **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) exist at project root but need to be moved to `.github/` per Phase 4.
+> **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) moved to `.github/` per Phase 4.
 >
-> **CI workflow** created as PR #1 — merge it to enable status checks for branch protection.
+> **CI workflow** ✅ PR #1 merged — workflow active on `main`

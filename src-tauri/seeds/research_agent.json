@@ -1,0 +1,17 @@
+{
+  "id": "research-agent",
+  "name": "Research Agent",
+  "description": "Conducts web research and produces structured reports with citations on any business topic.",
+  "specJson": {
+    "goal": "Research a topic thoroughly and produce a structured, cited report",
+    "steps": ["Clarify research scope and questions", "Perform web searches across multiple sources", "Extract and verify key facts", "Synthesize findings into a structured report", "Add citations and source links"],
+    "tools": ["web_search", "document_summarizer", "citation_formatter"],
+    "knowledgeSources": [],
+    "triggers": ["research_request", "market_analysis_request", "competitor_research_request"],
+    "outputs": ["research_report", "source_citations", "key_findings_summary"]
+  },
+  "model": "ollama",
+  "isStarter": true,
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "updatedAt": "2026-10-20T00:00:00.000Z"
+}

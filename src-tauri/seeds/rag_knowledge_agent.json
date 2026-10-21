@@ -1,0 +1,17 @@
+{
+  "id": "rag-knowledge-agent",
+  "name": "RAG Knowledge Agent",
+  "description": "Answers questions by searching and reasoning over the company's internal knowledge base and documents.",
+  "specJson": {
+    "goal": "Answer employee questions accurately using internal company documents and knowledge base",
+    "steps": ["Receive user question", "Search internal knowledge base for relevant documents", "Retrieve and rank most relevant passages", "Synthesize answer grounded in retrieved sources", "Provide answer with source references"],
+    "tools": ["document_search", "semantic_search", "qa_over_docs"],
+    "knowledgeSources": ["company_handbook.pdf", "policy_documents.md", "technical_docs.md", "onboarding_guide.md"],
+    "triggers": ["employee_question", "policy_lookup", "procedure_inquiry"],
+    "outputs": ["answered_question", "source_references", "confidence_score"]
+  },
+  "model": "ollama",
+  "isStarter": true,
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "updatedAt": "2026-10-20T00:00:00.000Z"
+}
