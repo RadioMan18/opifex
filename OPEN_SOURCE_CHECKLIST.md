@@ -29,12 +29,12 @@
 
 ## Phase 4: Community Health Files
 
-- [ ] `.github/CODE_OF_CONDUCT.md` — Contributor Covenant
-- [ ] `.github/CONTRIBUTING.md` — How to report bugs, suggest features, submit PRs
-- [ ] `.github/SECURITY.md` — Responsible disclosure process
-- [ ] `.github/ISSUE_TEMPLATE/bug_report.md`
-- [ ] `.github/ISSUE_TEMPLATE/feature_request.md`
-- [ ] `.github/PULL_REQUEST_TEMPLATE.md`
+- [x] `.github/CODE_OF_CONDUCT.md` — Contributor Covenant
+- [x] `.github/CONTRIBUTING.md` — How to report bugs, suggest features, submit PRs
+- [x] `.github/SECURITY.md` — Responsible disclosure process
+- [x] `.github/ISSUE_TEMPLATE/bug_report.md`
+- [x] `.github/ISSUE_TEMPLATE/feature_request.md`
+- [x] `.github/PULL_REQUEST_TEMPLATE.md`
 
 ## Phase 5: README.md Badges
 
@@ -73,6 +73,6 @@
 
 > **Phase 2 items** (topics/tags, repository description, Issues/Discussions settings) ✅ All completed on GitHub web UI. CODEOWNERS skipped per user preference.
 >
-> **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) exist at project root but need to be moved to `.github/` per Phase 4.
+> **Community health files** (CODE_OF_CONDUCT.md, CONTRIBUTING.md) moved to `.github/` per Phase 4.
 >
 > **CI workflow** ✅ PR #1 merged — workflow active on `main`
