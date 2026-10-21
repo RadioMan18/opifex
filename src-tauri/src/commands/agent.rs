@@ -91,6 +91,7 @@ pub struct UpdateAgentInput {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentListItem {
     pub id: String,
     pub name: String,
