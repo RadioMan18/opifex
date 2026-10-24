@@ -141,18 +141,30 @@ pub async fn ollama_pull_model(model: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn ollama_warmup_model(model: String) -> Result<(), String> {
-    let client = AsyncClient::new();
-    let _ = client
+    let client = reqwest::ClientBuilder::new()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let mut stream = client
         .post(format!("{}/api/chat", OLLAMA_HOST))
         .json(&serde_json::json!({
             "model": model,
             "messages": [{"role": "user", "content": "ping"}],
-            "stream": false,
+            "stream": true,
             "keep_alive": "5m",
         }))
         .send()
         .await
-        .map_err(|e| format!("Model warmup failed: {}", e))?;
+        .map_err(|e| format!("Model warmup failed: {}", e))?
+        .bytes_stream();
+
+    // Read just the first chunk to trigger model loading, then stop.
+    // keep_alive: "5m" keeps the model resident after the connection closes.
+    while let Some(chunk_result) = stream.next().await {
+        let _ = chunk_result.map_err(|e| format!("Warmup stream error: {}", e))?;
+        break;
+    }
+
     Ok(())
 }
 
