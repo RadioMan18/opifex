@@ -125,7 +125,7 @@ pub fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
 }
 
 #[tauri::command]
-pub fn ollama_pull_model(model: String) -> Result<String, String> {
+pub async fn ollama_pull_model(model: String) -> Result<String, String> {
     let output = Command::new("ollama")
         .args(["pull", &model])
         .output()
@@ -137,6 +137,23 @@ pub fn ollama_pull_model(model: String) -> Result<String, String> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("Failed to pull model '{}': {}", model, stderr))
     }
+}
+
+#[tauri::command]
+pub async fn ollama_warmup_model(model: String) -> Result<(), String> {
+    let client = AsyncClient::new();
+    let _ = client
+        .post(format!("{}/api/chat", OLLAMA_HOST))
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "stream": false,
+            "keep_alive": "5m",
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Model warmup failed: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -175,7 +192,8 @@ async fn ollama_chat_stream_impl(
         .json(&serde_json::json!({
             "model": model,
             "messages": messages,
-            "stream": true
+            "stream": true,
+            "keep_alive": "5m",
         }))
         .send()
         .await
@@ -534,7 +552,8 @@ fn ollama_chat_impl(model: String, messages: Vec<OllamaMessage>) -> Result<Ollam
     let req = serde_json::json!({
         "model": model,
         "messages": messages,
-        "stream": false
+        "stream": false,
+        "keep_alive": "5m",
     });
 
     let resp: serde_json::Value = client

@@ -73,6 +73,10 @@ export async function ollamaPullModel(model: string): Promise<string> {
   return invoke('ollama_pull_model', { model });
 }
 
+export async function ollamaWarmupModel(model: string): Promise<void> {
+  return invoke('ollama_warmup_model', { model });
+}
+
 export async function ollamaChat(
   provider: string,
   model: string,

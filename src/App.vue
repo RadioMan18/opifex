@@ -6,7 +6,7 @@ import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
-import { writeFile as ipcWriteFile } from '@/services/ipc';
+import { writeFile as ipcWriteFile, ollamaWarmupModel as ipcOllamaWarmupModel } from '@/services/ipc';
 import type { AgentPlan } from '@/types/agent';
 
 const store = useAgentStore();
@@ -170,6 +170,12 @@ async function handlePullModel(modelName: string) {
   await pullModel(modelName);
 }
 
+async function handleWarmupModel(model: string) {
+  await ipcOllamaWarmupModel(model).catch((err) => {
+    console.warn(`Model warmup failed for ${model}: ${err}`);
+  });
+}
+
 async function handleSetDefaultModel(modelName: string) {
   await setDefaultModel(modelName);
 }
@@ -307,6 +313,7 @@ async function handleDuplicateAgent(id: string) {
           :loading="loading"
           @change="handleSetDefaultModel"
           @pull="handlePullModel"
+          @warmup="handleWarmupModel"
         />
 
         <div class="provider-selector">

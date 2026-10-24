@@ -26,7 +26,7 @@ pub use diff::{diff_plan_versions, PlanDiff, PlanDiffResult, DiffPlanVersionsInp
 pub use ollama::{
     ollama_chat, ollama_chat_stream, ollama_get_default_model, ollama_list_models,
     ollama_pull_model, ollama_set_default_model, ollama_get_provider, ollama_set_provider,
-    ollama_get_api_key, ollama_set_api_key,
+    ollama_get_api_key, ollama_set_api_key, ollama_warmup_model,
 };
 #[allow(dead_code)]
 pub use plan::{save_plan_version, list_plan_versions, restore_plan_version};

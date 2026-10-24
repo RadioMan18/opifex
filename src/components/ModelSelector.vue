@@ -7,6 +7,7 @@ const props = defineProps({
   defaultModel: { type: String, required: true },
   onChange: { type: Function as PropType<(model: string) => void>, required: true },
   onPull: { type: Function as PropType<(modelName: string) => void>, required: true },
+  onWarmup: { type: Function as PropType<(model: string) => void>, required: false },
   loading: { type: Boolean, required: true },
 });
 
@@ -33,7 +34,13 @@ function formatSize(bytes: number | null): string {
       <select
         :value="defaultModel"
         class="model-select"
-        @change="(e) => props.onChange((e.target as HTMLSelectElement).value)"
+        @change="(e) => {
+          const model = (e.target as HTMLSelectElement).value;
+          props.onChange(model);
+          if (props.onWarmup && model !== '__pull__') {
+            props.onWarmup(model);
+          }
+        }"
         :disabled="loading"
       >
         <option v-for="m of models" :key="m.name" :value="m.name">
