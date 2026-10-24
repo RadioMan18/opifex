@@ -104,7 +104,7 @@ function formatTime(iso: string): string {
             <div v-if="msg.turnPlanJson.steps && msg.turnPlanJson.steps.length" class="plan-card-steps">
               <strong>Steps ({{ msg.turnPlanJson.steps.length }}):</strong>
               <ol class="plan-steps-preview">
-                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step }}</li>
+                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step.action }}</li>
                 <li v-if="msg.turnPlanJson.steps.length > 3" class="more-steps">
                   + {{ msg.turnPlanJson.steps.length - 3 }} more steps (see Plan panel)
                 </li>
