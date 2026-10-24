@@ -50,12 +50,20 @@ const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
 const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
 
-onMounted(() => {
+onMounted(async () => {
   init();
   loadTemplateSources();
   loadInstalledTemplates();
   applyDarkMode();
   setupKeyboardShortcuts();
+
+  // Warm up the default Ollama model on launch so the first chat round
+  // isn't delayed by model cold-start.
+  if (defaultModel.value) {
+    await ipcOllamaWarmupModel(defaultModel.value).catch((err) => {
+      console.warn(`Model warmup failed for ${defaultModel.value}: ${err}`);
+    });
+  }
 });
 
 function setupKeyboardShortcuts() {
