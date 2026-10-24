@@ -10,6 +10,7 @@ defineProps({
   currentAgentName: { type: String, required: false, default: '' },
   interviewing: { type: Boolean, required: false, default: false },
   buildError: { type: [String] as PropType<string | null>, required: false, default: null },
+  modelWarmedUp: { type: Boolean, required: false, default: true },
 });
 
 const emit = defineEmits(['send', 'build', 'retry', 'new-conversation']);
@@ -53,6 +54,10 @@ function formatTime(iso: string): string {
 
 <template>
   <div class="chat-pane">
+    <div v-if="!modelWarmedUp" class="warming-up-overlay">
+      <div class="warming-up-spinner"></div>
+      <p class="warming-up-text">Ollama model is warming up. Please wait a moment.</p>
+    </div>
     <div class="chat-header">
       <div class="chat-title">
         <span class="chat-icon">🤖</span>
@@ -518,5 +523,36 @@ function formatTime(iso: string): string {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+.warming-up-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  z-index: 10;
+}
+
+.warming-up-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.warming-up-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

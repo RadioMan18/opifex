@@ -388,6 +388,7 @@ async function handleDuplicateAgent(id: string) {
           :current-agent-name="currentAgent?.name ?? ''"
           :interviewing="interviewing"
           :build-error="buildError"
+          :model-warmed-up="state.modelWarmedUp"
           @send="handleSendMessage"
           @build="confirmBuild"
           @retry="retryBuild"
