@@ -174,6 +174,7 @@ describe('useAgentStore', () => {
       store.state.currentPlan = mockAgent.specJson
       store.state.provider = 'ollama'
       store.state.defaultModel = 'dolphin-llama3:8b'
+      store.state.modelWarmedUp = true
 
       mockOllamaChatStream.mockResolvedValue(() => {})
 
@@ -221,6 +222,7 @@ describe('useAgentStore', () => {
       store.state.currentPlan = mockAgent.specJson
       store.state.currentConversationId = 'conv-1'
       store.state.defaultModel = 'qwen3-coder:30b'
+      store.state.modelWarmedUp = true
 
       await store.sendMessage('Build an agent to answer customer questions')
 

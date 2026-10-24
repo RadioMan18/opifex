@@ -36,8 +36,9 @@ const {
   loadTemplateSources,
   loadMarketplaceTemplates,
   installMarketplaceTemplate,
-  loadInstalledTemplates,
-} = store;
+    loadInstalledTemplates,
+    setModelWarmedUp,
+  } = store;
 
 const newAgentName = ref('');
 const newAgentDescription = ref('');
@@ -60,9 +61,14 @@ onMounted(async () => {
   // Warm up the default Ollama model on launch so the first chat round
   // isn't delayed by model cold-start.
   if (defaultModel.value) {
-    await ipcOllamaWarmupModel(defaultModel.value).catch((err) => {
+    await ipcOllamaWarmupModel(defaultModel.value).then(() => {
+      setModelWarmedUp(true);
+    }).catch((err) => {
       console.warn(`Model warmup failed for ${defaultModel.value}: ${err}`);
+      setModelWarmedUp(true); // Allow chat even if warmup fails
     });
+  } else {
+    setModelWarmedUp(true);
   }
 });
 
@@ -179,8 +185,11 @@ async function handlePullModel(modelName: string) {
 }
 
 async function handleWarmupModel(model: string) {
-  await ipcOllamaWarmupModel(model).catch((err) => {
+  await ipcOllamaWarmupModel(model).then(() => {
+    setModelWarmedUp(true);
+  }).catch((err) => {
     console.warn(`Model warmup failed for ${model}: ${err}`);
+    setModelWarmedUp(true);
   });
 }
 

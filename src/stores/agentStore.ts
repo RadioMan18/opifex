@@ -77,6 +77,7 @@ interface AgentState {
   streaming: boolean;
   streamingMsgId: string | null;
   interviewing: boolean;
+  modelWarmedUp: boolean;
   buildError: string | null;
   rawStreamingContent: string | null;
   error: string | null;
@@ -98,6 +99,7 @@ const state = reactive<AgentState>({
   models: [],
   defaultModel: null,
   provider: null,
+  modelWarmedUp: false,
   apiKeys: {},
   loading: false,
   streaming: false,
@@ -262,6 +264,10 @@ export function useAgentStore() {
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
+  }
+
+  async function setModelWarmedUp(warmed: boolean) {
+    state.modelWarmedUp = warmed;
   }
 
   async function loadProvider() {
@@ -444,6 +450,10 @@ export function useAgentStore() {
       return;
     }
     if (!content.trim()) return;
+    if (!state.modelWarmedUp) {
+      state.error = 'Model is warming up. Please wait a moment and try again.';
+      return;
+    }
 
     if (failedAssistantMessageId) {
       state.messages = state.messages.filter(message => message.id !== failedAssistantMessageId);
@@ -551,78 +561,64 @@ export function useAgentStore() {
       : '{}';
 
     if (state.interviewing) {
-      return `You are Oppy, a senior AI Agent Architect for Opifex. Your mission is to interview the user and design a production-grade, highly autonomous, unambiguous AI agent specification.
+      return `You are Oppy, an AI Agent Architect for Opifex. Design a production-grade AI agent specification.
 
 Current agent: "${agentName}"
 Current plan (JSON): ${currentPlan}
 
-INTERVIEW MODE — 4-PILLAR ARCHITECTURAL FRAMEWORK:
-An autonomous agent fails when instructions are ambiguous or underspecified. You must proactively identify gaps and ask targeted clarifying questions across these 4 pillars:
+INTERVIEW MODE — 4 Pillars:
+1. GOAL & SCOPE: Precise objective, domain, constraints, time horizons.
+2. DETERMINISTIC LOGIC: Scoring formulas, filtering cutoffs, exact criteria.
+3. TOOLS vs KNOWLEDGE: Tools = callable actions (web_search, github_api). KnowledgeSources = data stores (github_repos, docs.md).
+4. OUTPUT DELIVERABLES: Exact artifacts and schema (markdown table, report, citations).
 
-1. GOAL & SCOPE:
-   - Precise objective, target domain, explicit inclusion/exclusion constraints, and relevant time horizons (e.g. "past 15 days", "last 12 months", "stable releases only").
-2. DETERMINISTIC LOGIC & METRICS:
-   - If ranking, scoring, or deciding: What is the exact formula, weightings, or thresholds? (e.g., "60% GitHub stars + 40% Reddit comment volume", "minimum 500 stars and commit within 6 months").
-   - If filtering: What are the explicit cutoff criteria?
-3. TOOLS vs. KNOWLEDGE SOURCES:
-   - "tools": Callable actions/capabilities only (e.g., web_search, github_api, text_summarizer, code_linter).
-   - "knowledgeSources": Information stores, repositories, APIs, or documents to query (e.g., github_repositories, reddit_community_threads, company_docs.md). Never list tools as knowledgeSources.
-4. OUTPUT DELIVERABLES & FORMAT:
-   - What exact deliverables and schema are required? (e.g., Markdown comparison table with columns [Rank, Tool, License, Stars, Reddit Score, Summary], executive report, citation links).
+Rules:
+- Ask 1-2 focused clarifying questions per turn.
+- Offer recommendations or multiple-choice options.
+- Update the "plan" JSON with specific, detailed steps. No vague placeholders.
+- Keep "response" conversational and concise.
+- When ready, ask: "Should I build this agent now?"
 
-CONVERSATIONAL RULES:
-1. Proactively spot missing details from the 4 pillars and ask 1 or 2 focused clarifying questions at a time.
-2. Offer sensible recommendations or multiple-choice options with your questions so the user can easily decide (e.g. "For ranking, should we weight stars higher (e.g., 60% stars / 40% Reddit comments), and limit Reddit discussions to the past 12 months?").
-3. Continuously update the "plan" JSON object with specific, detailed steps reflecting agreed criteria — do not leave steps as vague placeholders (e.g. write "Rank candidates using a composite score weighting GitHub stars at 60% and Reddit mentions at 40%" instead of just "Rank the tools").
-4. Keep "response" conversational, concise, and professional.
-5. Never stutter or repeat words or tokens.
-6. When the goal, logic/criteria, tools/sources, and output formats are sufficiently defined for autonomous execution without guessing, ask: "Should I build this agent now?"
-
-For EVERY turn, return ONLY a valid JSON object in this exact format:
+Return ONLY valid JSON:
 {
-  "response": "Your conversational reply and 1-2 clarifying questions with suggestions",
+  "response": "conversational reply with 1-2 clarifying questions",
   "plan": {
-    "goal": "Clear, scoped objective with constraints",
-    "steps": ["Step 1 with specific criteria", "Step 2 with action and inputs", ...],
-    "tools": ["callable_tool_1", "callable_tool_2"],
-    "knowledgeSources": ["data_source_1", "documentation_2"],
-    "triggers": ["trigger_event_1"],
-    "outputs": ["output_format_1", "output_format_2"]
+    "goal": "scoped objective",
+    "steps": ["specific actionable steps"],
+    "tools": ["tool1", "tool2"],
+    "knowledgeSources": ["source1"],
+    "triggers": ["trigger1"],
+    "outputs": ["output1"]
   }
 }
-Use empty strings or arrays for details not yet determined. The plan panel updates live after every turn.`;
+Use empty strings/arrays for undetermined fields.`;
     } else {
-      return `You are Oppy, a senior AI Agent Architect for Opifex. The interview is complete. Compile the full conversation into a final, production-ready, unambiguous agent specification that an autonomous agent can follow without guessing.
+      return `You are Oppy. Compile the conversation into a final, production-ready agent specification.
 
 Current agent: "${agentName}"
-Current plan (JSON):
-${currentPlan}
+Current plan (JSON): ${currentPlan}
 
-PLAN MODE — PRODUCTION SPECIFICATION STANDARDS:
-1. "goal": A clear, high-precision objective specifying domain, constraints, and time horizons.
-2. "steps": Ordered, self-contained, actionable instructions. Every step must contain:
-   - Actionable criteria and deterministic rules (e.g. scoring formulas, filtering cutoffs, specific search queries).
-   - Explicit inputs, actions to perform, and expected intermediate outputs.
-   - No vague placeholders like "Search tools" or "Rank them" — specify HOW to search, WHAT to filter, and HOW to rank.
-3. "tools": Only valid callable tools and actions (e.g., web_search, github_api, document_summarizer, citation_formatter).
-4. "knowledgeSources": Target information repositories, documentation corpora, databases, or online platforms (e.g., github_repositories, reddit_community_threads, company_docs.md). Do NOT list tools as knowledgeSources.
-5. "triggers": Events or conditions that invoke the agent (e.g., user_request, schedule_daily).
-6. "outputs": Concrete artifacts with schema/format expectations (e.g., top_10_comparison_table, detailed_tool_breakdown, source_citations_with_urls).
+PLAN MODE:
+1. "goal": Clear, precise objective with domain and constraints.
+2. "steps": Ordered, actionable steps with explicit criteria and inputs. No vague placeholders.
+3. "tools": Callable actions only (web_search, github_api, etc.).
+4. "knowledgeSources": Data stores and docs only. No tools listed here.
+5. "triggers": Events that invoke the agent.
+6. "outputs": Concrete artifacts with schema/format.
 
-RESPONSE FORMAT:
-Return ONLY a raw JSON object — no markdown code fences, no explanations before or after:
+Return ONLY valid JSON:
 {
-  "response": "A concise summary of the built agent, highlighting its scope, scoring logic, and outputs.",
+  "response": "concise summary of scope, logic, outputs",
   "plan": {
     "goal": "string",
-    "steps": ["step 1 with explicit logic", "step 2 with inputs and criteria", ...],
-    "tools": ["tool1", "tool2"],
-    "knowledgeSources": ["source1", "source2"],
+    "steps": ["step 1", "step 2"],
+    "tools": ["tool1"],
+    "knowledgeSources": ["source1"],
     "triggers": ["trigger1"],
-    "outputs": ["output1", "output2"]
+    "outputs": ["output1"]
   }
 }
-Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
+Double-quoted keys, valid JSON only.`;
     }
   }
 
@@ -1223,5 +1219,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     installMarketplaceTemplate,
     loadInstalledTemplates,
     diffPlanVersions,
+    setModelWarmedUp,
   };
 }
