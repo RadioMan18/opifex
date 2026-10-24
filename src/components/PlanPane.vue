@@ -40,11 +40,6 @@ const planGoal = computed({
   set: (val: string) => emit('update', 'goal', val),
 });
 
-const planSteps = computed({
-  get: () => formatArray(plan.value?.steps),
-  set: (val: string) => emit('update', 'steps', val.split(',').map(s => s.trim()).filter(Boolean)),
-});
-
 const planTools = computed({
   get: () => formatArray(plan.value?.tools),
   set: (val: string) => emit('update', 'tools', val.split(',').map(s => s.trim()).filter(Boolean)),
@@ -128,12 +123,10 @@ function formatDate(iso: string): string {
 
       <div class="plan-section">
         <label class="section-label">Steps</label>
-        <textarea
-          v-model="planSteps"
-          class="plan-input"
-          placeholder="Step 1, Step 2, Step 3"
-          rows="4"
-        ></textarea>
+        <ol v-if="plan?.steps && plan.steps.length" class="plan-steps-preview">
+          <li v-for="(step, idx) in plan.steps" :key="idx">{{ step.action }}</li>
+        </ol>
+        <p v-else class="plan-steps-empty">—</p>
       </div>
 
       <div class="plan-section">
@@ -816,5 +809,19 @@ function formatDate(iso: string): string {
 }
 .btn-diff:hover {
   background: var(--border-hover);
+}
+
+.plan-steps-preview {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.plan-steps-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
 }
 </style>
