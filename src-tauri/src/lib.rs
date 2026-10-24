@@ -8,6 +8,10 @@ use crate::commands::{
     save_plan_version, list_plan_versions, restore_plan_version,
     ollama_get_provider, ollama_set_provider, ollama_get_api_key, ollama_set_api_key,
     write_file, read_file,
+    request_approval, poll_approval_status, cancel_approval, list_pending_approvals,
+    add_template_source, list_template_sources, fetch_templates, install_template,
+    list_installed_templates,
+    diff_plan_versions,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -75,6 +79,16 @@ pub fn run() {
       restore_plan_version,
       write_file,
       read_file,
+      request_approval,
+      poll_approval_status,
+      cancel_approval,
+      list_pending_approvals,
+      add_template_source,
+      list_template_sources,
+      fetch_templates,
+      install_template,
+      list_installed_templates,
+      diff_plan_versions,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

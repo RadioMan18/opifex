@@ -3,11 +3,19 @@ import type {
   Agent,
   AgentListItem,
   AgentPlan,
+  ApprovalRequest,
+  ApprovalStatus,
   Conversation,
+  CreateApprovalInput,
+  InstalledTemplate,
+  InstallTemplateResult,
   Message,
   OllamaModel,
   OllamaMessage,
+  PlanDiffResult,
   PlanVersion,
+  TemplateEntry,
+  TemplateSource,
 } from '@/types/agent';
 import {
   createAgent as ipcCreateAgent,
@@ -36,6 +44,16 @@ import {
   savePlanVersion as ipcSavePlanVersion,
   listPlanVersions as ipcListPlanVersions,
   restorePlanVersion as ipcRestorePlanVersion,
+  requestApproval as ipcRequestApproval,
+  pollApprovalStatus as ipcPollApprovalStatus,
+  cancelApproval as ipcCancelApproval,
+  listPendingApprovals as ipcListPendingApprovals,
+  addTemplateSource as ipcAddTemplateSource,
+  listTemplateSources as ipcListTemplateSources,
+  fetchTemplates as ipcFetchTemplates,
+  installTemplate as ipcInstallTemplate,
+  listInstalledTemplates as ipcListInstalledTemplates,
+  diffPlanVersions as ipcDiffPlanVersions,
 } from '@/services/ipc';
 
 interface AgentState {
@@ -46,6 +64,11 @@ interface AgentState {
   conversations: Conversation[];
   currentConversationId: string | null;
   planVersions: PlanVersion[];
+  pendingApprovals: ApprovalRequest[];
+  templateSources: TemplateSource[];
+  installedTemplates: InstalledTemplate[];
+  marketplaceTemplates: TemplateEntry[];
+  marketplaceLoading: boolean;
   models: OllamaModel[];
   defaultModel: string | null;
   provider: string | null;
@@ -67,6 +90,11 @@ const state = reactive<AgentState>({
   conversations: [],
   currentConversationId: null,
   planVersions: [],
+  pendingApprovals: [],
+  templateSources: [],
+  installedTemplates: [],
+  marketplaceTemplates: [],
+  marketplaceLoading: false,
   models: [],
   defaultModel: null,
   provider: null,
@@ -87,12 +115,17 @@ let failedAssistantMessageId: string | null = null;
 let streamingContent = '';
 let streamCleanup: (() => void) | null = null;
 
-function parseStringArray(value: unknown): string[] | undefined {
+function parseStringArray(value: unknown): (string | { action: string })[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+  if (!Array.isArray(value)) {
     throw new Error('Oppy returned an invalid agent plan');
   }
-  return value;
+  for (const item of value) {
+    if (typeof item !== 'string' && (!item || typeof item !== 'object' || !('action' in item))) {
+      throw new Error('Oppy returned an invalid agent plan');
+    }
+  }
+  return value as (string | { action: string })[];
 }
 
 function repairRepeatedOutput(content: string): string {
@@ -830,11 +863,14 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       }
       const plan: AgentPlan = {
         goal: typeof planObject.goal === 'string' ? planObject.goal : undefined,
-        steps: parseStringArray(planObject.steps),
-        tools: parseStringArray(planObject.tools),
-        knowledgeSources: parseStringArray(planObject.knowledgeSources),
-        triggers: parseStringArray(planObject.triggers),
-        outputs: parseStringArray(planObject.outputs),
+        steps: parseStringArray(planObject.steps)?.map((item) => {
+          const action = typeof item === 'string' ? item : item.action;
+          return { action, inputs: [], requiresApproval: false, approvalContext: undefined };
+        }),
+        tools: parseStringArray(planObject.tools)?.map((item) => (typeof item === 'string' ? item : item.action)) ?? [],
+        knowledgeSources: parseStringArray(planObject.knowledgeSources)?.map((item) => (typeof item === 'string' ? item : item.action)) ?? [],
+        triggers: parseStringArray(planObject.triggers)?.map((item) => (typeof item === 'string' ? item : item.action)) ?? [],
+        outputs: parseStringArray(planObject.outputs)?.map((item) => (typeof item === 'string' ? item : item.action)) ?? [],
       };
       const response = typeof parsedObject.response === 'string'
         ? parsedObject.response
@@ -911,6 +947,16 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     const newPlan = { ...state.currentPlan };
     if (section === 'goal') {
       newPlan.goal = value as string;
+    } else if (section === 'steps') {
+      const stepStrings = Array.isArray(value)
+        ? value.filter(Boolean)
+        : value.split(',').map(s => s.trim()).filter(Boolean);
+      newPlan.steps = stepStrings.map((action) => ({
+        action,
+        inputs: [],
+        requiresApproval: false,
+        approvalContext: undefined,
+      }));
     } else {
       newPlan[section] = Array.isArray(value)
         ? value.filter(Boolean)
@@ -981,6 +1027,71 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     }
   }
 
+  async function requestApproval(input: CreateApprovalInput): Promise<{ taskId: string; approveUrl: string; denyUrl: string; cancelUrl: string; status: string } | null> {
+    try {
+      const result = await ipcRequestApproval(input);
+      const approval: ApprovalRequest = {
+        id: result.taskId,
+        agentId: input.agentId,
+        taskId: result.taskId,
+        command: input.command,
+        context: input.context,
+        status: 'pending',
+        response: null,
+        requestedAt: new Date().toISOString(),
+        respondedAt: null,
+      };
+      state.pendingApprovals = [approval, ...state.pendingApprovals];
+      return result;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function pollApprovalStatus(input: { taskId: string }): Promise<ApprovalStatus | null> {
+    try {
+      const status = await ipcPollApprovalStatus(input);
+      state.pendingApprovals = state.pendingApprovals.map(a =>
+        a.taskId === input.taskId
+          ? { ...a, status: status.status as any, response: status.response ?? null, respondedAt: new Date().toISOString() }
+          : a
+      );
+      return status;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function cancelApproval(input: { taskId: string }): Promise<boolean> {
+    try {
+      const cancelled = await ipcCancelApproval(input);
+      if (cancelled) {
+        state.pendingApprovals = state.pendingApprovals.map(a =>
+          a.taskId === input.taskId
+            ? { ...a, status: 'cancelled', response: 'cancelled', respondedAt: new Date().toISOString() }
+            : a
+        );
+      }
+      return cancelled;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return false;
+    }
+  }
+
+  async function listPendingApprovals(agentId?: string): Promise<ApprovalRequest[]> {
+    try {
+      const approvals = await ipcListPendingApprovals(agentId ? { agentId } : undefined);
+      state.pendingApprovals = approvals;
+      return approvals;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    }
+  }
+
   async function deleteCurrentAgent() {
     if (!state.currentAgent) return;
     cleanupStream();
@@ -995,6 +1106,83 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       await loadAgents();
     } catch (err: any) {
       state.error = err?.message || String(err);
+    }
+  }
+
+  async function addTemplateSource(name: string, url: string): Promise<TemplateSource | null> {
+    try {
+      const source = await ipcAddTemplateSource({ name, url });
+      state.templateSources = [source, ...state.templateSources];
+      return source;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function loadTemplateSources(): Promise<TemplateSource[]> {
+    try {
+      const sources = await ipcListTemplateSources();
+      state.templateSources = sources;
+      return sources;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    }
+  }
+
+  async function loadMarketplaceTemplates(sourceId: string): Promise<TemplateEntry[]> {
+    state.marketplaceLoading = true;
+    state.error = null;
+    try {
+      const templates = await ipcFetchTemplates(sourceId);
+      state.marketplaceTemplates = templates;
+      return templates;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    } finally {
+      state.marketplaceLoading = false;
+    }
+  }
+
+  async function installMarketplaceTemplate(
+    templateId: string,
+    version: string,
+    sourceId: string,
+  ): Promise<InstallTemplateResult | null> {
+    try {
+      const result = await ipcInstallTemplate({ templateId, version, sourceId });
+      state.installedTemplates = [
+        { id: result.agentId, templateId: result.templateId, version: result.version, installedAt: new Date().toISOString() },
+        ...state.installedTemplates,
+      ];
+      await loadAgents();
+      return result;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function loadInstalledTemplates(): Promise<InstalledTemplate[]> {
+    try {
+      const templates = await ipcListInstalledTemplates();
+      state.installedTemplates = templates;
+      return templates;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    }
+  }
+
+  async function diffPlanVersions(versionIdA: string, versionIdB: string): Promise<PlanDiffResult | null> {
+    try {
+      const result = await ipcDiffPlanVersions(versionIdA, versionIdB);
+      return result;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
     }
   }
 
@@ -1025,5 +1213,15 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     renameAgent,
     duplicateAgent,
     deleteCurrentAgent,
+    requestApproval,
+    pollApprovalStatus,
+    cancelApproval,
+    listPendingApprovals,
+    addTemplateSource,
+    loadTemplateSources,
+    loadMarketplaceTemplates,
+    installMarketplaceTemplate,
+    loadInstalledTemplates,
+    diffPlanVersions,
   };
 }

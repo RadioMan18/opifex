@@ -60,6 +60,34 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         );
+
+        CREATE TABLE IF NOT EXISTS approval_requests (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            task_id TEXT NOT NULL UNIQUE,
+            command TEXT NOT NULL,
+            context TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            response TEXT,
+            requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+            responded_at TEXT,
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS template_sources (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            added_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS installed_templates (
+            id TEXT PRIMARY KEY,
+            template_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            installed_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
         "#,
     )?;
     Ok(())

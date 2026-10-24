@@ -147,7 +147,7 @@ function formatTime(iso: string): string {
 .chat-pane {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 0;
   background: var(--bg-secondary);
   border-right: 1px solid #e5e5e5;
   overflow: hidden;
@@ -189,7 +189,7 @@ function formatTime(iso: string): string {
   font-size: 0.875rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
@@ -204,7 +204,7 @@ function formatTime(iso: string): string {
   font-size: 0.875rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
@@ -255,10 +255,11 @@ function formatTime(iso: string): string {
 }
 
 .agent-library-placeholder {
-  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 4.25rem;
 }
 
 .empty-state {
@@ -268,7 +269,12 @@ function formatTime(iso: string): string {
 
 .empty-icon {
   font-size: 3rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  font-size: 0.95rem;
+  margin: 0;
 }
 
 .empty-state p {

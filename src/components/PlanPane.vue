@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { PropType } from 'vue';
-import type { AgentPlan, PlanVersion } from '@/types/agent';
+import { useAgentStore } from '@/stores/agentStore';
+import type {
+  AgentPlan,
+  AgentPlanStep,
+  PlanDiffResult,
+  PlanVersion,
+} from '@/types/agent';
+
+const store = useAgentStore();
+const { diffPlanVersions } = store;
 
 const props = defineProps({
   plan: { type: Object as PropType<AgentPlan | null>, required: true, default: null },
@@ -22,6 +31,9 @@ const emit = defineEmits<{
 const plan = computed(() => props.plan);
 const compareVersion = computed(() => props.compareVersion);
 const showVersions = ref(false);
+const showDiff = ref(false);
+const diffResult = ref<PlanDiffResult | null>(null);
+const diffLoading = ref(false);
 
 const planGoal = computed({
   get: () => plan.value?.goal || '',
@@ -53,8 +65,33 @@ const planOutputs = computed({
   set: (val: string) => emit('update', 'outputs', val.split(',').map(s => s.trim()).filter(Boolean)),
 });
 
-function formatArray(val: string[] | undefined): string {
-  return (val || []).join(', ');
+function formatArray(val: string[] | AgentPlanStep[] | undefined): string {
+  if (!val) return '';
+  if (val.length > 0 && typeof val[0] === 'object') {
+    return (val as AgentPlanStep[]).map(s => s.action).join(', ');
+  }
+  return (val as string[]).join(', ');
+}
+
+async function handleDiffVersion(versionId: string) {
+  if (!plan.value) return;
+  diffLoading.value = true;
+  diffResult.value = null;
+  try {
+    const result = await diffPlanVersions(props.compareVersionId!, versionId);
+    diffResult.value = result;
+    showDiff.value = true;
+  } catch (err: any) {
+    console.error('Diff failed:', err);
+  } finally {
+    diffLoading.value = false;
+  }
+}
+
+function formatValue(val: unknown): string {
+  if (val === null || val === undefined) return '—';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
 }
 
 function formatDate(iso: string): string {
@@ -154,6 +191,7 @@ function formatDate(iso: string): string {
           </div>
           <button class="btn-restore" @click="emit('restore-version', v.id)">Restore</button>
           <button class="btn-compare" @click="emit('compare-version', v.id)">Compare</button>
+          <button class="btn-diff" @click="handleDiffVersion(v.id)">Diff</button>
         </div>
       </div>
       <div v-if="props.versions.length === 0" class="version-empty">
@@ -177,9 +215,9 @@ function formatDate(iso: string): string {
         </div>
         <div class="diff-section">
           <h5>Steps</h5>
-          <div class="diff-current-text">{{ (plan?.steps || []).join(', ') || '—' }}</div>
+          <div class="diff-current-text">{{ (plan?.steps || []).map((s: any) => s.action || s).join(', ') || '—' }}</div>
           <div class="diff-arrow">&harr;</div>
-          <div class="diff-version-text">{{ (compareVersion?.specJson?.steps || []).join(', ') || '—' }}</div>
+          <div class="diff-version-text">{{ (compareVersion?.specJson?.steps || []).map((s: any) => s.action || s).join(', ') || '—' }}</div>
         </div>
         <div class="diff-section">
           <h5>Tools</h5>
@@ -213,6 +251,55 @@ function formatDate(iso: string): string {
   <div v-else class="plan-empty">
     <div class="empty-icon">💬</div>
     <p>Start a conversation with Oppy to build your agent plan.</p>
+  </div>
+
+  <div v-if="showDiff" class="dialog-overlay" @click.self="showDiff = false">
+    <div class="dialog" @click.stop>
+      <div class="dialog-header">
+        <h4>Plan Version Diff</h4>
+        <button class="btn-close" @click="showDiff = false">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div v-if="diffLoading" class="empty-state">
+          <p>Computing diff…</p>
+        </div>
+        <div v-else-if="diffResult" class="diff-result">
+          <div class="diff-summary">
+            <span class="diff-label">Version A:</span>
+            <span class="diff-value">{{ diffResult.versionAId }}</span>
+            <span class="diff-label">Version B:</span>
+            <span class="diff-value">{{ diffResult.versionBId }}</span>
+            <span class="diff-similarity">
+              Similarity: {{ (diffResult.similarity * 100).toFixed(1) }}%
+            </span>
+          </div>
+          <div v-if="diffResult.diffs.length === 0" class="diff-empty">
+            <p>No differences found.</p>
+          </div>
+          <div v-else class="diff-list">
+            <div
+              v-for="d of diffResult.diffs"
+              :key="d.field"
+              class="diff-item"
+              :class="`diff-${d.diffType}`"
+            >
+              <div class="diff-field">{{ d.field }}</div>
+              <div class="diff-type">{{ d.diffType }}</div>
+              <div class="diff-values">
+                <span v-if="d.before !== null && d.before !== undefined" class="diff-before">− {{ formatValue(d.before) }}</span>
+                <span v-if="d.after !== null && d.after !== undefined" class="diff-after">+ {{ formatValue(d.after) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <p>No diff results available.</p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn-close-dialog" @click="showDiff = false">Close</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -532,5 +619,202 @@ function formatDate(iso: string): string {
 
 .btn-close-diff:hover {
   background: var(--danger-hover);
+}
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dialog-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.btn-close:hover {
+  color: var(--text-primary);
+}
+
+.dialog-body {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.diff-summary {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.diff-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.diff-value {
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.diff-similarity {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.diff-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.diff-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
+.diff-item.diff-changed {
+  border-left: 3px solid var(--accent);
+}
+
+.diff-item.diff-added {
+  border-left: 3px solid var(--success);
+}
+
+.diff-item.diff-removed {
+  border-left: 3px solid var(--danger);
+}
+
+.diff-field {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 150px;
+  font-family: monospace;
+}
+
+.diff-type {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.diff-item.diff-changed .diff-type {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent);
+}
+
+.diff-item.diff-added .diff-type {
+  background: rgba(136, 207, 158, 0.1);
+  color: var(--success);
+}
+
+.diff-item.diff-removed .diff-type {
+  background: rgba(242, 147, 147, 0.1);
+  color: var(--danger);
+}
+
+.diff-values {
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.diff-before {
+  color: var(--danger);
+}
+
+.diff-after {
+  color: var(--success);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn-close-dialog {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-close-dialog:hover {
+  background: var(--border-hover);
+}
+
+.btn-diff {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8rem;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-diff:hover {
+  background: var(--border-hover);
 }
 </style>

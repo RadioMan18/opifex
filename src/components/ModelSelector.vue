@@ -78,7 +78,7 @@ function formatSize(bytes: number | null): string {
 .model-select {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 3px solid var(--input-border);
+  border: 1px solid var(--input-border);
   border-radius: 6px;
   font-size: 0.9rem;
   background: var(--input-bg);
@@ -100,7 +100,7 @@ function formatSize(bytes: number | null): string {
   padding: 0.5rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
 }

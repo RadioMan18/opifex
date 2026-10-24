@@ -32,6 +32,11 @@ const {
   importAgent,
   renameAgent,
   duplicateAgent,
+  addTemplateSource,
+  loadTemplateSources,
+  loadMarketplaceTemplates,
+  installMarketplaceTemplate,
+  loadInstalledTemplates,
 } = store;
 
 const newAgentName = ref('');
@@ -47,6 +52,8 @@ const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
 
 onMounted(() => {
   init();
+  loadTemplateSources();
+  loadInstalledTemplates();
   applyDarkMode();
   setupKeyboardShortcuts();
 });
@@ -112,6 +119,11 @@ const buildError = computed(() => state.buildError);
 const isDark = computed(() => darkMode.value);
 const compareVersionId = ref<string | null>(null);
 const compareVersion = computed(() => state.planVersions.find(v => v.id === compareVersionId.value));
+const templateSources = computed(() => state.templateSources);
+const installedTemplates = computed(() => state.installedTemplates);
+const marketplaceTemplates = computed(() => state.marketplaceTemplates);
+const marketplaceLoading = computed(() => state.marketplaceLoading);
+const selectedSourceId = ref<string | null>(null);
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -361,12 +373,22 @@ async function handleDuplicateAgent(id: string) {
         <AgentLibrary
           v-if="!currentAgent"
           :agents="state.agents"
+          :template-sources="templateSources"
+          :installed-templates="installedTemplates"
+          :marketplace-templates="marketplaceTemplates"
+          :marketplace-loading="marketplaceLoading"
+          :selected-source-id="selectedSourceId"
           @select="handleSelectAgent"
           @create="() => { showCreateDialog = true }"
           @rename="startRename"
           @duplicate="handleDuplicateAgent"
           @export="handleExportAgent"
           @delete="handleDeleteAgent"
+          @add-template-source="addTemplateSource"
+          @load-template-sources="loadTemplateSources"
+          @load-marketplace-templates="(sourceId) => loadMarketplaceTemplates(sourceId)"
+          @install-marketplace-template="(templateId, version, sourceId) => installMarketplaceTemplate(templateId, version, sourceId)"
+          @load-installed-templates="loadInstalledTemplates"
         />
       </div>
 
@@ -811,7 +833,7 @@ async function handleDuplicateAgent(id: string) {
   padding: 0.5rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
@@ -871,7 +893,7 @@ async function handleDuplicateAgent(id: string) {
   padding: 0.5rem;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;

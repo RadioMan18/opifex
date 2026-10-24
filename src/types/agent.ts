@@ -1,10 +1,41 @@
+export interface AgentPlanStep {
+  action: string;
+  inputs: string[];
+  requiresApproval: boolean;
+  approvalContext?: string;
+}
+
 export interface AgentPlan {
   goal?: string;
-  steps?: string[];
+  steps?: AgentPlanStep[];
   tools?: string[];
   knowledgeSources?: string[];
   triggers?: string[];
   outputs?: string[];
+}
+
+export interface ApprovalRequest {
+  id: string;
+  agentId: string;
+  taskId: string;
+  command: string;
+  context: string;
+  status: 'pending' | 'approved' | 'denied' | 'cancelled';
+  response: string | null;
+  requestedAt: string;
+  respondedAt: string | null;
+}
+
+export interface CreateApprovalInput {
+  agentId: string;
+  command: string;
+  context: string;
+}
+
+export interface ApprovalStatus {
+  taskId: string;
+  status: 'pending' | 'approved' | 'denied' | 'cancelled';
+  response: string | null;
 }
 
 export interface Agent {
@@ -119,3 +150,68 @@ export interface OllamaChatOutput {
 }
 
 export type LlmProvider = 'ollama' | 'openai' | 'anthropic';
+
+export interface TemplateSource {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  addedAt: string;
+}
+
+export interface AddTemplateSourceInput {
+  name: string;
+  url: string;
+}
+
+export interface TemplateEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  version: string;
+  author: string | null;
+  downloadUrl: string | null;
+  checksum: string | null;
+  specJson: unknown | null;
+  model: string | null;
+  isStarter: boolean;
+}
+
+export interface InstalledTemplate {
+  id: string;
+  templateId: string;
+  version: string;
+  installedAt: string;
+}
+
+export interface InstallTemplateInput {
+  templateId: string;
+  version: string;
+  sourceId: string;
+}
+
+export interface InstallTemplateResult {
+  agentId: string;
+  name: string;
+  templateId: string;
+  version: string;
+}
+
+export interface PlanDiff {
+  field: string;
+  diffType: string;
+  before: unknown | null;
+  after: unknown | null;
+}
+
+export interface PlanDiffResult {
+  versionAId: string;
+  versionBId: string;
+  diffs: PlanDiff[];
+  similarity: number;
+}
+
+export interface DiffPlanVersionsInput {
+  versionIdA: string;
+  versionIdB: string;
+}

@@ -4,17 +4,25 @@ import type {
   Agent,
   AgentListItem,
   AgentPlan,
+  AddTemplateSourceInput,
+  ApprovalRequest,
+  ApprovalStatus,
   Conversation,
   CreateAgentInput,
+  CreateApprovalInput,
   CreateConversationInput,
   DbMessage,
+  InstalledTemplate,
   OllamaModel,
   OllamaMessage,
   OllamaChatOutput,
   PlanVersion,
   SaveMessageInput,
   SavePlanVersionInput,
+  TemplateEntry,
+  TemplateSource,
   UpdateAgentInput,
+  PlanDiffResult,
 } from '@/types/agent';
 
 export async function createAgent(input: CreateAgentInput): Promise<Agent> {
@@ -210,4 +218,49 @@ export async function restorePlanVersion(versionId: string): Promise<AgentPlan> 
 
 export async function writeFile(path: string, content: string): Promise<void> {
   return invoke('write_file', { path, content });
+}
+
+export async function requestApproval(input: CreateApprovalInput): Promise<{ taskId: string; approveUrl: string; denyUrl: string; cancelUrl: string; status: string }> {
+  return invoke('request_approval', { input });
+}
+
+export async function pollApprovalStatus(input: { taskId: string }): Promise<ApprovalStatus> {
+  return invoke('poll_approval_status', input);
+}
+
+export async function cancelApproval(input: { taskId: string }): Promise<boolean> {
+  return invoke('cancel_approval', input);
+}
+
+export async function listPendingApprovals(input?: { agentId?: string }): Promise<ApprovalRequest[]> {
+  return invoke('list_pending_approvals', { input: input ?? undefined });
+}
+
+export async function addTemplateSource(input: AddTemplateSourceInput): Promise<TemplateSource> {
+  return invoke('add_template_source', { input });
+}
+
+export async function listTemplateSources(): Promise<TemplateSource[]> {
+  return invoke('list_template_sources');
+}
+
+export async function fetchTemplates(sourceId: string): Promise<TemplateEntry[]> {
+  return invoke('fetch_templates', { sourceId });
+}
+
+export async function installTemplate(input: { templateId: string; version: string; sourceId: string }): Promise<{
+  agentId: string;
+  name: string;
+  templateId: string;
+  version: string;
+}> {
+  return invoke('install_template', { input });
+}
+
+export async function listInstalledTemplates(): Promise<InstalledTemplate[]> {
+  return invoke('list_installed_templates');
+}
+
+export async function diffPlanVersions(versionIdA: string, versionIdB: string): Promise<PlanDiffResult> {
+  return invoke('diff_plan_versions', { versionIdA, versionIdB });
 }

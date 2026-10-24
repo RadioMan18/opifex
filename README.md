@@ -186,6 +186,46 @@ npx vitest run
 
 Both test suites must pass (6 Rust tests + 12 Vitest tests).
 
+## 🔗 Companion Repository: Notifier (Approval Gates)
+
+Opifex v1.1.0 introduces **human-in-the-loop (HITL) approval gates** powered by [Notifier](https://github.com/RadioMan18/notifier), a lightweight approval gateway maintained as a separate Node.js/Express repository.
+
+### Why a separate repo?
+
+Notifier is a shared service that can serve multiple agents and tools — Opifex, project-planner (SpecSmith), Antigravity, GitHub Copilot, and Kilo Code. Keeping it independent lets any of those projects use the same approval gateway without bundling Node.js into the Tauri installer.
+
+### Installing Notifier
+
+Notifier is optional. Opifex works without it, but approval-required agent steps are skipped with a warning.
+
+1. **Clone and install Notifier:**
+   ```powershell
+   git clone https://github.com/RadioMan18/notifier.git
+   cd notifier
+   npm install
+   Copy-Item .env.example .env
+   notepad .env   # Edit NOTIFIER_NAME, PORT, PUBLIC_GATEWAY_URL, NOTIFIER_PROVIDER
+   npm start
+   ```
+
+2. **Verify Notifier is running:**
+   ```powershell
+   Invoke-RestMethod http://localhost:3001/health
+   # Expected: { "status": "ok" }
+   ```
+
+3. **Configure Opifex:** Open **Settings → Approval Gates** and set **Notifier Base URL** to `http://localhost:3001` (default). Click **Test Connection**.
+
+For full setup details, see [`docs/notifier-integration.md`](docs/notifier-integration.md).
+
+### Approval gate flow
+
+1. Build an agent plan in Opifex; mark specific steps as "Approval required."
+2. When the agent reaches a flagged step, Opifex posts an approval request to Notifier.
+3. You receive a notification (browser, Telegram, or console per Notifier config).
+4. Approve or deny via Notifier's respond URLs or Opifex's **Approvals** tab.
+5. Opifex polls for the decision and proceeds or halts accordingly.
+
 ## 🗺️ Roadmap
 
 ### Phase 1 — MVP (Complete)
@@ -200,12 +240,11 @@ Both test suites must pass (6 Rust tests + 12 Vitest tests).
 - ✅ Save plan version as downloadable JSON
 - ✅ Home navigation from agent view
 
-### Phase 2 — Polish (Planned)
-- Agent export/import improvements
-- Plan comparison/diff between versions
-- Agent templates marketplace
-- Keyboard shortcuts
-- Dark mode
+### Phase 2 — v1.1.0 "Agent Teams" (In Progress)
+- ✅ HITL approval gates via Notifier companion
+- ⬜ Agent template marketplace (checksum-verified catalog imports)
+- ⬜ Plan diff / version comparison
+- ⬜ Notifier MCP server for Antigravity / Copilot / Kilo Code
 
 ### Phase 3 — SaaS (Future)
 - Multi-tenancy and authentication

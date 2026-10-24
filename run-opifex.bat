@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================
-echo  Opifex - Agent Builder (Smoke Test)
+echo  Opifex v1.1.0 - Agent Teams (Test Runner)
 echo ========================================
 echo.
 
@@ -23,6 +23,44 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Choose run mode:
+echo   [1] Dev mode (fast, hot-reload, for testing)
+echo   [2] Release build (full build, for distribution testing)
+echo   [3] Dev mode + start Notifier companion
+echo.
+set /p MODE="Enter choice (1-3): "
+
+if "%MODE%"=="1" goto dev
+if "%MODE%"=="2" goto release
+if "%MODE%"=="3" goto dev_notifier
+
+:dev
+echo.
+echo [1/2] Building frontend...
+call npm run build
+if errorlevel 1 (
+    echo ERROR: Frontend build failed.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [2/2] Launching Opifex dev mode...
+echo Starting Vite dev server in background...
+start "Vite Dev" cmd /k "npm run dev"
+timeout /t 5 >nul
+echo Launching Tauri application...
+cd /d "%~dp0src-tauri"
+cargo run
+if errorlevel 1 (
+    echo ERROR: Failed to launch Opifex dev.
+    pause
+    exit /b 1
+)
+goto end
+
+:release
+echo.
 echo [1/3] Building frontend...
 call npm run build
 if errorlevel 1 (
@@ -33,6 +71,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Building Tauri application...
+cd /d "%~dp0src-tauri"
 cargo tauri build
 if errorlevel 1 (
     echo ERROR: Tauri build failed.
@@ -60,5 +99,35 @@ if errorlevel 1 (
 
 echo.
 echo Opifex was launched. Check your taskbar for the window.
+goto end
+
+:dev_notifier
 echo.
+echo [1/2] Building frontend...
+call npm run build
+if errorlevel 1 (
+    echo ERROR: Frontend build failed.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [2/2] Launching Opifex dev + Notifier companion...
+start "Notifier" cmd /k "cd /d D:\src\notifier && npm start"
+timeout /t 3 >nul
+echo Starting Vite dev server in background...
+start "Vite Dev" cmd /k "npm run dev"
+timeout /t 5 >nul
+echo Launching Tauri application...
+cd /d "%~dp0src-tauri"
+cargo run
+if errorlevel 1 (
+    echo ERROR: Failed to launch Opifex dev.
+    pause
+    exit /b 1
+)
+
+:end
+echo.
+echo Done.
 pause

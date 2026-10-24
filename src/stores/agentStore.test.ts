@@ -194,7 +194,7 @@ describe('useAgentStore', () => {
     it('updates the plan after an interview turn and uses the selected model', async () => {
       const plan = {
         goal: 'Answer customer questions',
-        steps: ['Understand the question'],
+        steps: [{ action: 'Understand the question', inputs: [], requiresApproval: false }],
         tools: ['Help center search'],
         knowledgeSources: ['Help center articles'],
         triggers: [],
@@ -264,7 +264,7 @@ describe('useAgentStore', () => {
         turnPlanJson: null,
         createdAt: '2024-01-01T00:00:00Z',
       })
-      mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: { goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/G/GititHubHub comments from the last 1 155 days', steps: ['Clarify research scope and questions'], tools: ['web_search'], knowledgeSources: [], triggers: [], outputs: ['research_report'] } })
+      mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: { goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/GitHub comments from the last 155 days', steps: [{ action: 'Clarify research scope and questions', inputs: [], requiresApproval: false }], tools: ['web_search'], knowledgeSources: [], triggers: [], outputs: ['research_report'] } })
       mockOllamaChatStream.mockImplementation(async (_provider, _model, _apiKey, _messages, callbacks) => {
         callbacks.onChunk(damagedResponse)
         callbacks.onEnd()
@@ -282,11 +282,11 @@ describe('useAgentStore', () => {
       expect(store.state.currentPlan).toEqual({
         goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/GitHub comments from the last 155 days',
         steps: [
-          'Clarify research scope and questions',
-          'Perform web searches across multiple sources including GitHub and web-based platforms',
-          'Extract and verify key facts about app stars, comments, and other relevant metrics',
-          'Synthesize findings into a structured report with ranked table of top 100 apps',
-          'Add citations and source links',
+          { action: 'Clarify research scope and questions', inputs: [], requiresApproval: false },
+          { action: 'Perform web searches across multiple sources including GitHub and web-based platforms', inputs: [], requiresApproval: false },
+          { action: 'Extract and verify key facts about app stars, comments, and other relevant metrics', inputs: [], requiresApproval: false },
+          { action: 'Synthesize findings into a structured report with ranked table of top 100 apps', inputs: [], requiresApproval: false },
+          { action: 'Add citations and source links', inputs: [], requiresApproval: false },
         ],
         tools: ['web_search', 'document_summarizer', 'citation_formatter'],
         knowledgeSources: [],
