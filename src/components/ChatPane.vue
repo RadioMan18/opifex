@@ -175,7 +175,7 @@ function formatTime(iso: string): string {
   height: 100%;
   background: var(--surface-card);
   border-right: 1px solid var(--border);
-  overflow: hidden;
+  overflow-y: auto;
   position: relative;
 }
 
@@ -323,8 +323,10 @@ function formatTime(iso: string): string {
 .agent-library-placeholder {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 4.5rem;
 }
 
 .empty-state {

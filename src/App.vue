@@ -113,7 +113,7 @@ function applyDarkMode() {
     root.style.setProperty('--text-muted', '#6E737C');
     root.style.setProperty('--border', '#4A4F58');
     root.style.setProperty('--border-focus', '#82BCF4');
-    root.style.setProperty('--border-hover', '#5A5F68');
+    root.style.setProperty('--border-hover', '#8A8F98');
     root.style.setProperty('--primary', '#82BCF4');
     root.style.setProperty('--primary-hover', '#98C8F7');
     root.style.setProperty('--primary-fg', '#09192A');
