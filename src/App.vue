@@ -24,7 +24,6 @@ const {
   deleteCurrentAgent,
   pullModel,
   setDefaultModel,
-  setProvider,
   setApiKey,
   savePlanVersion,
   loadPlanVersions,
@@ -59,43 +58,8 @@ onMounted(async () => {
   await loadInstalledTemplates();
 });
 
-function setupKeyboardShortcuts() {
-  window.addEventListener('keydown', (e) => {
-    // Don't trigger shortcuts when typing in inputs/textareas
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-      return;
-    }
-
-    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
-
-    if (isCtrlOrMeta && e.key.toLowerCase() === 'n') {
-      e.preventDefault();
-      showCreateDialog.value = true;
-    } else if (isCtrlOrMeta && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      if (currentAgent.value && currentPlan.value) {
-        handleSaveVersion();
-      }
-    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'o') {
-      e.preventDefault();
-      showImportDialog.value = true;
-    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'e') {
-      e.preventDefault();
-      if (currentAgent.value) {
-        handleExportAgent(currentAgent.value.id);
-      }
-    } else if (isCtrlOrMeta && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      if (currentAgent.value) {
-        handleDeleteAgent(currentAgent.value.id);
-      }
-    }
-  });
-}
-
 function toggleDarkMode() {
   darkMode.value = !darkMode.value;
-  applyDarkMode();
 }
 
 function applyDarkMode() {
@@ -104,32 +68,32 @@ function applyDarkMode() {
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 
   if (isDark) {
-    root.style.setProperty('--surface-base', '#16181B');
-    root.style.setProperty('--surface-card', '#202328');
-    root.style.setProperty('--surface-hover', '#2A2D34');
-    root.style.setProperty('--surface-muted', '#1E2126');
-    root.style.setProperty('--text-primary', '#F1F3F5');
-    root.style.setProperty('--text-secondary', '#9BA1A9');
-    root.style.setProperty('--text-muted', '#D0D0D0');
-    root.style.setProperty('--border', '#7A7F88');
-    root.style.setProperty('--border-focus', '#82BCF4');
-    root.style.setProperty('--border-hover', '#B8B8B8');
-    root.style.setProperty('--primary', '#82BCF4');
-    root.style.setProperty('--primary-hover', '#98C8F7');
-    root.style.setProperty('--primary-fg', '#09192A');
-    root.style.setProperty('--primary-bg', 'rgba(130, 188, 244, 0.15)');
-    root.style.setProperty('--success', '#63B87E');
-    root.style.setProperty('--success-fg', '#E1F7EA');
-    root.style.setProperty('--success-bg', 'rgba(99, 184, 126, 0.15)');
-    root.style.setProperty('--danger', '#E06C6C');
-    root.style.setProperty('--danger-fg', '#FBE4E4');
-    root.style.setProperty('--danger-bg', 'rgba(224, 108, 108, 0.15)');
-    root.style.setProperty('--warning', '#E2B350');
-    root.style.setProperty('--warning-fg', '#FBE9D8');
-    root.style.setProperty('--warning-bg', 'rgba(226, 179, 80, 0.15)');
+    root.style.setProperty('--surface-base', '#111827');
+    root.style.setProperty('--surface-card', '#1F2937');
+    root.style.setProperty('--surface-hover', '#374151');
+    root.style.setProperty('--surface-muted', '#111827');
+    root.style.setProperty('--text-primary', '#F9FAFB');
+    root.style.setProperty('--text-secondary', '#9CA3AF');
+    root.style.setProperty('--text-muted', '#D1D5DB');
+    root.style.setProperty('--border', '#374151');
+    root.style.setProperty('--border-focus', '#3B82F6');
+    root.style.setProperty('--border-hover', '#4B5563');
+    root.style.setProperty('--primary', '#3B82F6');
+    root.style.setProperty('--primary-hover', '#2563EB');
+    root.style.setProperty('--primary-fg', '#FFFFFF');
+    root.style.setProperty('--primary-bg', 'rgba(59, 130, 246, 0.15)');
+    root.style.setProperty('--success', '#22C55E');
+    root.style.setProperty('--success-fg', '#FFFFFF');
+    root.style.setProperty('--success-bg', 'rgba(34, 197, 94, 0.15)');
+    root.style.setProperty('--danger', '#EF4444');
+    root.style.setProperty('--danger-fg', '#FFFFFF');
+    root.style.setProperty('--danger-bg', 'rgba(239, 68, 68, 0.15)');
+    root.style.setProperty('--warning', '#EAB308');
+    root.style.setProperty('--warning-fg', '#FFFFFF');
+    root.style.setProperty('--warning-bg', 'rgba(234, 179, 8, 0.15)');
     root.style.setProperty('--shadow-sm', '0 1px 2px rgba(0, 0, 0, 0.4)');
-    root.style.setProperty('--shadow-md', '0 4px 12px rgba(0, 0, 0, 0.5)');
-    root.style.setProperty('--shadow-lg', '0 12px 32px rgba(0, 0, 0, 0.6)');
+    root.style.setProperty('--shadow-md', '0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5)');
+    root.style.setProperty('--shadow-lg', '0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6)');
   } else {
     root.style.removeProperty('--surface-base');
     root.style.removeProperty('--surface-card');
@@ -171,7 +135,6 @@ const loading = computed(() => state.loading);
 const streaming = computed(() => state.streaming);
 const streamingMsgId = computed(() => state.streamingMsgId);
 const error = computed(() => state.error);
-const provider = computed(() => state.provider);
 const apiKeys = computed(() => state.apiKeys);
 const planVersions = computed(() => state.planVersions);
 const interviewing = computed(() => state.interviewing);
@@ -184,6 +147,10 @@ const installedTemplates = computed(() => state.installedTemplates);
 const marketplaceTemplates = computed(() => state.marketplaceTemplates);
 const marketplaceLoading = computed(() => state.marketplaceLoading);
 const selectedSourceId = ref<string | null>(null);
+
+const setCompareVersion = (id: string | null) => {
+  compareVersionId.value = id;
+};
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -216,26 +183,12 @@ async function handleDeleteAgent(id: string) {
   await deleteCurrentAgent();
 }
 
-async function goHome() {
-  state.currentAgent = null;
-  state.currentPlan = null;
-  state.messages = [];
-  state.conversations = [];
-  state.currentConversationId = null;
-  state.planVersions = [];
-  state.interviewing = true;
-}
-
 async function handlePullModel(modelName: string) {
   await pullModel(modelName);
 }
 
 async function handleSetDefaultModel(modelName: string) {
   await setDefaultModel(modelName);
-}
-
-async function handleSetProvider(prov: string) {
-  await setProvider(prov);
 }
 
 async function handleSetApiKey(prov: string, key: string) {
@@ -245,6 +198,10 @@ async function handleSetApiKey(prov: string, key: string) {
 async function handleApiKeyChange(prov: string, e: Event) {
   const target = e.target as HTMLInputElement;
   state.apiKeys[prov as keyof typeof state.apiKeys] = target.value;
+}
+
+async function handlePlanUpdate(section: keyof AgentPlan, value: string | string[]) {
+  await updatePlanField(section, value);
 }
 
 async function handleAddTemplateSource(name: string, url: string) {
@@ -260,72 +217,6 @@ async function handleInstallMarketplaceTemplate(templateId: string, version: str
   const result = await installMarketplaceTemplate(templateId, version, sourceId);
   if (result) {
     await loadInstalledTemplates();
-  }
-}
-
-async function handlePlanUpdate(section: keyof AgentPlan, value: string | string[]) {
-  await updatePlanField(section, value);
-}
-
-async function handleSaveVersion() {
-  const label = newVersionLabel.value.trim() || undefined;
-  await savePlanVersion(label);
-  newVersionLabel.value = '';
-
-  // Open native Windows Save dialog
-  if (currentAgent.value && currentPlan.value) {
-    const planExport = {
-      agentId: currentAgent.value.id,
-      agentName: currentAgent.value.name,
-      label: label || 'Untitled version',
-      plan: currentPlan.value,
-      exportedAt: new Date().toISOString(),
-    };
-    const json = JSON.stringify(planExport, null, 2);
-    const defaultName = `${currentAgent.value.name || 'agent'}-plan.json`;
-    const filePath = await tauriSaveDialog({
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (filePath) {
-      try {
-        await ipcWriteFile(filePath, json);
-      } catch (err: any) {
-        state.error = err?.message || String(err);
-      }
-    }
-  }
-
-  // Reload versions for current agent
-  if (currentAgent.value) {
-    await loadPlanVersions(currentAgent.value.id);
-  }
-}
-
-async function handleRestoreVersion(versionId: string) {
-  await restorePlanVersion(versionId);
-  if (currentAgent.value) {
-    await loadPlanVersions(currentAgent.value.id);
-  }
-}
-
-async function handleCompareVersion(versionId: string | null) {
-  compareVersionId.value = versionId;
-}
-
-async function handleExportAgent(id: string) {
-  try {
-    const json = await exportAgent(id);
-    const defaultName = `${currentAgent.value?.name || 'agent'}.json`;
-    const filePath = await tauriSaveDialog({
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (filePath) {
-      await ipcWriteFile(filePath, json);
-    }
-  } catch (err: any) {
-    state.error = err?.message || String(err);
   }
 }
 
@@ -368,6 +259,61 @@ async function handleDuplicateAgent(id: string) {
     await duplicateAgent(id, newName);
   }
 }
+
+async function handleExportAgent() {
+  if (currentAgent.value) {
+    await exportAgent(currentAgent.value.id);
+  }
+}
+
+async function handleSaveVersion() {
+  const label = newVersionLabel.value.trim() || undefined;
+  await savePlanVersion(label);
+  newVersionLabel.value = '';
+
+  if (currentAgent.value && currentPlan.value) {
+    const planExport = {
+      agentId: currentAgent.value.id,
+      agentName: currentAgent.value.name,
+      label: label || 'Untitled version',
+      plan: currentPlan.value,
+      exportedAt: new Date().toISOString(),
+    };
+    const json = JSON.stringify(planExport, null, 2);
+    const defaultName = `${currentAgent.value.name || 'agent'}-plan.json`;
+    const filePath = await tauriSaveDialog({
+      defaultPath: defaultName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (filePath) {
+      try {
+        await ipcWriteFile(filePath, json);
+      } catch (err: any) {
+        state.error = err?.message || String(err);
+      }
+    }
+  }
+
+  if (currentAgent.value) {
+    await loadPlanVersions(currentAgent.value.id);
+  }
+}
+
+async function handleRestoreVersion(versionId: string) {
+  await restorePlanVersion(versionId);
+  if (currentAgent.value) {
+    await loadPlanVersions(currentAgent.value.id);
+  }
+}
+
+async function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      showCreateDialog.value = true;
+    }
+  });
+}
 </script>
 
 <template>
@@ -377,7 +323,7 @@ async function handleDuplicateAgent(id: string) {
         <span class="brand-name">Opifex</span>
       </div>
 
-      <div class="top-bar-actions">
+      <div class="top-bar-center">
         <ModelSelector
           :models="models"
           :defaultModel="defaultModel ?? ''"
@@ -385,47 +331,27 @@ async function handleDuplicateAgent(id: string) {
           @change="handleSetDefaultModel"
           @pull="handlePullModel"
         />
+      </div>
 
-        <div class="provider-selector">
-          <select
-            v-model="provider"
-            class="provider-select"
-            @change="(e) => handleSetProvider((e.target as HTMLSelectElement).value)"
-          >
-            <option value="ollama">Ollama (Local)</option>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
-          <button
-            class="btn-api-key"
-            @click="showProviderDialog = true"
-            title="Configure API keys"
-          >
+      <div class="top-bar-actions">
+        <div class="action-group">
+          <button class="btn-secondary" @click="showProviderDialog = true" title="Configure API keys">
             API Keys
+          </button>
+          <button class="btn-secondary" @click="showImportDialog = true" title="Import agent">Import</button>
+        </div>
+
+        <div class="action-group">
+          <button class="btn-primary" @click="showCreateDialog = true" title="New agent">
+            New Agent
           </button>
         </div>
 
-        <button class="btn-import" @click="showImportDialog = true" title="Import agent">Import</button>
-        <button class="btn-new" @click="showCreateDialog = true" title="New agent">New Agent</button>
-        <button
-          v-if="currentAgent"
-          class="btn-save-agent-header"
-          @click="handleExportAgent(currentAgent.id)"
-          title="Save agent"
-        >
-          Save Agent
-        </button>
-        <button
-          v-if="currentAgent"
-          class="btn-home"
-          @click="goHome"
-          title="Return to library"
-        >
-          Library
-        </button>
-        <button class="btn-dark-toggle" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
-          {{ isDark ? 'Light' : 'Dark' }}
-        </button>
+        <div class="action-group">
+          <button class="btn-text" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
+            {{ isDark ? 'Light' : 'Dark' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -479,74 +405,70 @@ async function handleDuplicateAgent(id: string) {
         @update="handlePlanUpdate"
         @save-version="handleSaveVersion"
         @restore-version="handleRestoreVersion"
-        @compare-version="handleCompareVersion"
-        @export-agent="() => currentAgent && handleExportAgent(currentAgent.id)"
+        @compare-version="setCompareVersion"
+        @export-agent="handleExportAgent"
       />
     </div>
 
-    <div v-if="showCreateDialog" class="modal-overlay" @click.self="showCreateDialog = false">
-      <div class="modal">
-        <h3>Create New Agent</h3>
+    <div class="modal-overlay" v-if="showCreateDialog" @click.self="showCreateDialog = false">
+      <div class="modal" @click.stop>
+        <h3>Create Agent</h3>
         <div class="form-group">
           <label>Name</label>
           <input
             v-model="newAgentName"
-            placeholder="e.g. Customer Support Agent"
+            type="text"
+            placeholder="e.g. Research Assistant"
             class="form-input"
           />
         </div>
         <div class="form-group">
           <label>Description</label>
-          <textarea
+          <input
             v-model="newAgentDescription"
+            type="text"
             placeholder="What does this agent do?"
             class="form-input"
-            rows="3"
-          ></textarea>
+          />
         </div>
         <div class="form-actions">
           <button class="btn-cancel" @click="showCreateDialog = false">Cancel</button>
-          <button class="btn-create" @click="handleCreateAgent" :disabled="!newAgentName.trim()">
-            Create Agent
-          </button>
+          <button class="btn-primary" @click="handleCreateAgent">Create Agent</button>
         </div>
       </div>
     </div>
 
-    <div v-if="showImportDialog" class="modal-overlay" @click.self="showImportDialog = false">
-      <div class="modal">
+    <div class="modal-overlay" v-if="showImportDialog" @click.self="showImportDialog = false">
+      <div class="modal" @click.stop>
         <h3>Import Agent</h3>
-        <div class="form-group">
-          <label>Select agent JSON file</label>
-          <button class="btn-create" @click="handleImportAgent">Browse Files</button>
-        </div>
+        <p class="form-hint">Upload a JSON agent specification file.</p>
         <div class="form-actions">
-          <button class="btn-cancel" @click="showImportDialog = false">Close</button>
+          <button class="btn-cancel" @click="showImportDialog = false">Cancel</button>
+          <button class="btn-primary" @click="handleImportAgent">Import</button>
         </div>
       </div>
     </div>
 
-    <div v-if="showRenameDialog && renameId" class="modal-overlay" @click.self="showRenameDialog = false">
-      <div class="modal">
+    <div class="modal-overlay" v-if="showRenameDialog" @click.self="showRenameDialog = false">
+      <div class="modal" @click.stop>
         <h3>Rename Agent</h3>
         <div class="form-group">
           <label>New Name</label>
           <input
             v-model="renameName"
+            type="text"
             class="form-input"
           />
         </div>
         <div class="form-actions">
           <button class="btn-cancel" @click="showRenameDialog = false">Cancel</button>
-          <button class="btn-create" @click="handleRenameAgent(renameId!, renameName)" :disabled="!renameName.trim()">
-            Rename
-          </button>
+          <button class="btn-primary" @click="handleRenameAgent(renameId!, renameName)">Rename</button>
         </div>
       </div>
     </div>
 
-    <div v-if="showProviderDialog" class="modal-overlay" @click.self="showProviderDialog = false">
-      <div class="modal">
+    <div class="modal-overlay" v-if="showProviderDialog" @click.self="showProviderDialog = false">
+      <div class="modal" @click.stop>
         <h3>Configure API Keys</h3>
         <div class="form-group">
           <label>OpenAI API Key</label>
@@ -575,65 +497,55 @@ async function handleDuplicateAgent(id: string) {
         </div>
       </div>
     </div>
-
-    <div v-if="currentAgent && currentPlan" class="version-save-bar">
-      <label>Save plan version:</label>
-      <input
-        v-model="newVersionLabel"
-        class="version-input"
-        placeholder="Version label (optional)"
-      />
-      <button class="btn-save-version-bar" @click="handleSaveVersion">Save Version</button>
-    </div>
   </div>
 </template>
 
 <style scoped>
-/* Opifex design tokens — Operate mode, desktop */
+/* Opifex design tokens — Operate mode, desktop, Relevance AI inspired */
 :root {
   /* Surfaces */
-  --surface-base: #FAF7F3;
+  --surface-base: #FAFAF9;
   --surface-card: #FFFFFF;
-  --surface-hover: #F5F2ED;
-  --surface-muted: #F0ECE6;
+  --surface-hover: #F3F4F6;
+  --surface-muted: #F9FAFB;
 
   /* Text */
-  --text-primary: #24262B;
-  --text-secondary: #5A5F68;
-  --text-muted: #6E737C;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
 
   /* Border */
-  --border: #8A8F98;
-  --border-focus: #3A7BD5;
-  --border-hover: #6E737C;
+  --border: #E5E7EB;
+  --border-focus: #2563EB;
+  --border-hover: #D1D5DB;
 
   /* Interactive */
-  --primary: #4A90E2;
-  --primary-hover: #357ABD;
-  --primary-fg: #0F2840;
-  --primary-bg: rgba(123, 179, 232, 0.10);
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-fg: #FFFFFF;
+  --primary-bg: rgba(37, 99, 235, 0.10);
 
-  --success: #88CF9E;
-  --success-fg: #133821;
-  --success-bg: rgba(136, 207, 158, 0.10);
+  --success: #16A34A;
+  --success-fg: #FFFFFF;
+  --success-bg: rgba(22, 163, 74, 0.10);
 
-  --danger: #F29393;
-  --danger-fg: #4A1E1E;
-  --danger-bg: rgba(242, 147, 147, 0.10);
+  --danger: #DC2626;
+  --danger-fg: #FFFFFF;
+  --danger-bg: rgba(220, 38, 38, 0.10);
 
-  --warning: #F5CD79;
-  --warning-fg: #4A3A0F;
-  --warning-bg: rgba(245, 205, 121, 0.10);
+  --warning: #CA8A04;
+  --warning-fg: #FFFFFF;
+  --warning-bg: rgba(202, 138, 4, 0.10);
 
-  /* Shadows — offset + blur, no zero-offset halos */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+  /* Shadows — soft, offset shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
   /* Radius */
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
   /* Spacing scale (4px base) */
   --space-1: 0.25rem;
@@ -643,6 +555,8 @@ async function handleDuplicateAgent(id: string) {
   --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
 
   /* Typography scale */
   --type-xs: 0.75rem;
@@ -650,7 +564,9 @@ async function handleDuplicateAgent(id: string) {
   --type-base: 1rem;
   --type-lg: 1.125rem;
   --type-xl: 1.25rem;
-  --type-display: 1.5rem;
+  --type-2xl: 1.5rem;
+  --type-3xl: 1.875rem;
+  --type-display: 2.25rem;
 }
 
 * {
@@ -714,12 +630,13 @@ body {
 }
 
 .top-bar {
-  padding: var(--space-4) var(--space-6);
+  height: 64px;
+  padding: 0 var(--space-6);
   background: var(--surface-card);
   border-bottom: 1px solid var(--border);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   flex-shrink: 0;
 }
 
@@ -736,10 +653,82 @@ body {
   letter-spacing: -0.02em;
 }
 
+.top-bar-center {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
 .top-bar-actions {
   display: flex;
-  gap: var(--space-3);
   align-items: center;
+  gap: var(--space-3);
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.btn-secondary {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+}
+
+.btn-primary {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--type-sm);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-primary:disabled {
+  background: var(--border-hover);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.btn-text {
+  padding: var(--space-2);
+  font-size: var(--type-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-text:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .error-banner {
@@ -763,7 +752,7 @@ body {
 .chat-pane-wrapper {
   flex: 1;
   min-width: 340px;
-  max-width: 520px;
+  max-width: 560px;
   display: flex;
   flex-direction: column;
   background: var(--surface-card);
@@ -780,7 +769,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(22, 24, 27, 0.4);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -806,6 +795,12 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
+}
+
+.form-hint {
+  font-size: var(--type-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
 }
 
 .form-group {
@@ -836,7 +831,7 @@ body {
 .form-input:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(123, 179, 232, 0.1);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .form-actions {
@@ -849,44 +844,17 @@ body {
 .btn-cancel {
   padding: var(--space-2) var(--space-5);
   font-size: var(--type-sm);
-  background: var(--surface-muted);
+  background: var(--surface-card);
   color: var(--text-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
-  transition: background 0.2s, border-color 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-  background: var(--border-hover);
-  border-color: var(--border-focus);
-}
-
-.btn-primary {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--type-sm);
-  background: var(--primary);
-  color: var(--primary-fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  transition: background 0.2s, transform 0.1s;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.btn-primary:disabled {
-  background: var(--border-hover);
-  color: var(--text-muted);
-  cursor: not-allowed;
+  background: var(--surface-hover);
 }
 
 .version-save-bar {
@@ -895,7 +863,7 @@ body {
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
@@ -912,7 +880,7 @@ body {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-font-size: var(--type-base);
+  font-size: var(--type-base);
   font-family: inherit;
   background: var(--surface-card);
   color: var(--text-primary);
@@ -935,123 +903,22 @@ font-size: var(--type-base);
 }
 
 .btn-save-version-bar:hover {
-  background: #7BB3E8;
-  border-color: var(--border-focus);
+  background: var(--success);
 }
 
-.provider-selector {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.provider-label {
-  font-size: var(--type-xs);
+.btn-save-key {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
   font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin-left: var(--space-2);
 }
 
-.provider-select {
-padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--type-base);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  min-width: 110px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.provider-select:focus {
-  outline: none;
-  border-color: var(--border-focus);
-}
-
-.btn-api-key {
-  padding: var(--space-2);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--type-base);
-}
-
-.btn-api-key:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-focus);
-}
-
-.btn-import, .btn-new {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--type-sm);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.btn-import:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-focus);
-}
-
-.btn-new:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
-}
-
-.btn-save-agent-header {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--type-sm);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.btn-save-agent-header:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-focus);
-}
-
-.btn-home {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--type-sm);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.btn-home:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
-}
-
-.btn-dark-toggle {
-  padding: var(--space-2);
-  background: var(--surface-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--type-base);
-}
-
-.btn-dark-toggle:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-focus);
+.btn-save-key:hover {
+  background: var(--primary-hover);
 }
 </style>
