@@ -76,9 +76,9 @@ function applyDarkMode() {
     root.style.setProperty('--text-primary', '#F9FAFB');
     root.style.setProperty('--text-secondary', '#9CA3AF');
     root.style.setProperty('--text-muted', '#D1D5DB');
-    root.style.setProperty('--border', '#4B5563');
+    root.style.setProperty('--border', '#D1D5DB');
     root.style.setProperty('--border-focus', '#3B82F6');
-    root.style.setProperty('--border-hover', '#6B7280');
+    root.style.setProperty('--border-hover', '#9CA3AF');
     root.style.setProperty('--primary', '#3B82F6');
     root.style.setProperty('--primary-hover', '#2563EB');
     root.style.setProperty('--primary-fg', '#FFFFFF');
@@ -377,6 +377,7 @@ async function setupKeyboardShortcuts() {
     <div class="panes">
       <div class="chat-pane-wrapper">
         <ChatPane
+          v-if="currentAgent"
           :messages="messages"
           :streaming="streaming"
           :streaming-msg-id="streamingMsgId ?? ''"
@@ -532,9 +533,9 @@ async function setupKeyboardShortcuts() {
   --text-muted: #9CA3AF;
 
   /* Border */
-  --border: #8A8F98;
+  --border: #000000;
   --border-focus: #2563EB;
-  --border-hover: #6B7280;
+  --border-hover: #374151;
 
   /* Interactive */
   --primary: #2563EB;
@@ -679,7 +680,7 @@ body {
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--space-8);
 }
 
 .action-group {
@@ -774,7 +775,7 @@ body {
   flex-direction: column;
   background: var(--surface-card);
   border-right: 1px solid var(--border);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .divider {

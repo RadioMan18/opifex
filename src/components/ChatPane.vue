@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { PropType } from 'vue';
-import type { Message } from '@/types/agent';
+import type { AgentListItem, Message, TemplateEntry, TemplateSource, InstalledTemplate } from '@/types/agent';
+import AgentLibrary from '@/components/AgentLibrary.vue';
 
 defineProps({
   messages: { type: Array as PropType<Message[]>, required: true },
@@ -11,9 +12,22 @@ defineProps({
   interviewing: { type: Boolean, required: false, default: false },
   buildError: { type: [String] as PropType<string | null>, required: false, default: null },
   modelWarmedUp: { type: Boolean, required: false, default: true },
+  agentsProp: { type: Array as PropType<AgentListItem[]>, required: false, default: () => [] },
+  templateSourcesProp: { type: Array as PropType<TemplateSource[]>, required: false, default: () => [] },
+  installedTemplatesProp: { type: Array as PropType<InstalledTemplate[]>, required: false, default: () => [] },
+  marketplaceTemplatesProp: { type: Array as PropType<TemplateEntry[]>, required: false, default: () => [] },
+  marketplaceLoadingProp: { type: Boolean as PropType<boolean>, required: false, default: false },
+  selectedSourceIdProp: { type: [String, null] as PropType<string | null>, required: false, default: null },
 });
 
-const emit = defineEmits(['send', 'build', 'retry', 'new-conversation']);
+const emit = defineEmits([
+  'send', 'build', 'retry', 'new-conversation',
+  'select-agent', 'create-agent', 'rename-agent', 'duplicate-agent',
+  'export-agent', 'delete-agent',
+  'add-template-source', 'load-template-sources',
+  'load-marketplace-templates', 'install-marketplace-template',
+  'load-installed-templates',
+]);
 const newMessage = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
@@ -86,17 +100,26 @@ function formatTime(iso: string): string {
       </div>
     </div>
 
-    <div class="agent-library-placeholder" v-if="!currentAgentName">
-      <div class="empty-state">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-        </div>
-        <p>Select or create an agent from the library to start building with Oppy.</p>
-      </div>
+    <div class="agent-library" v-if="!currentAgentName">
+      <AgentLibrary
+        :agents="agentsProp"
+        :template-sources="templateSourcesProp"
+        :installed-templates="installedTemplatesProp"
+        :marketplace-templates="marketplaceTemplatesProp"
+        :marketplace-loading="marketplaceLoadingProp"
+        :selected-source-id="selectedSourceIdProp"
+        @select="emit('select-agent')"
+        @create="emit('create-agent')"
+        @rename="emit('rename-agent')"
+        @duplicate="emit('duplicate-agent')"
+        @export="emit('export-agent')"
+        @delete="emit('delete-agent')"
+        @add-template-source="emit('add-template-source')"
+        @load-template-sources="emit('load-template-sources')"
+        @load-marketplace-templates="emit('load-marketplace-templates')"
+        @install-marketplace-template="emit('install-marketplace-template')"
+        @load-installed-templates="emit('load-installed-templates')"
+      />
     </div>
 
     <div class="chat-messages" v-if="currentAgentName">
