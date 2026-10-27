@@ -680,7 +680,8 @@ body {
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-6);
+  margin-left: -var(--space-8);
 }
 
 .action-group {
@@ -690,7 +691,7 @@ body {
 }
 
 .btn-secondary {
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-8);
   font-size: var(--type-sm);
   background: var(--surface-card);
   color: var(--text-secondary);
@@ -707,7 +708,7 @@ body {
 }
 
 .btn-primary {
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-10);
   font-size: var(--type-sm);
   background: var(--primary);
   color: var(--primary-fg);
@@ -733,7 +734,7 @@ body {
 }
 
 .btn-text {
-  padding: var(--space-2);
+  padding: var(--space-3);
   font-size: var(--type-sm);
   background: transparent;
   color: var(--text-secondary);
