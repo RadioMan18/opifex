@@ -8,6 +8,8 @@ use crate::commands::{
     save_plan_version, list_plan_versions, restore_plan_version,
     ollama_get_provider, ollama_set_provider, ollama_get_api_key, ollama_set_api_key,
     write_file, read_file,
+    add_template_source, list_template_sources, fetch_templates, install_template,
+    list_installed_templates,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -75,6 +77,11 @@ pub fn run() {
       restore_plan_version,
       write_file,
       read_file,
+      add_template_source,
+      list_template_sources,
+      fetch_templates,
+      install_template,
+      list_installed_templates,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

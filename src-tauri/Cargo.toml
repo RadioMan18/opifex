@@ -34,3 +34,5 @@ reqwest = { version = "0.12", features = ["blocking", "json", "stream"] }
 tokio-stream = "0.1"
 tauri-plugin-dialog = "2.7.3"
 tauri-plugin-fs = "2.2.0"
+sha2 = "0.10"
+hex = "0.4"

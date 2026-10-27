@@ -3,6 +3,7 @@ mod conversation;
 mod files;
 mod ollama;
 mod plan;
+mod template;
 
 #[allow(dead_code)]
 pub use agent::{
@@ -20,6 +21,13 @@ pub use ollama::{
 };
 #[allow(dead_code)]
 pub use plan::{save_plan_version, list_plan_versions, restore_plan_version};
+#[allow(dead_code)]
+pub use template::{
+    add_template_source, fetch_templates, install_template, list_installed_templates,
+    list_template_sources, InstalledTemplate, TemplateEntry, TemplateSource,
+};
+#[allow(dead_code)]
+pub use template::{AddTemplateSourceInput, InstallTemplateInput, InstallTemplateResult};
 pub use files::{write_file, read_file};
 #[allow(dead_code)]
 pub use agent::{Agent, AgentListItem, CreateAgentInput, UpdateAgentInput};

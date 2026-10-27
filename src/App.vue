@@ -8,7 +8,7 @@ import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
 import { writeFile as ipcWriteFile } from '@/services/ipc';
-import type { AgentPlan } from '@/types/agent';
+import type { AgentPlan, InstalledTemplate, TemplateSource } from '@/types/agent';
 
 const store = useAgentStore();
 const {
@@ -33,6 +33,11 @@ const {
   importAgent,
   renameAgent,
   duplicateAgent,
+  addTemplateSource,
+  loadTemplateSources,
+  fetchMarketplaceTemplates,
+  installMarketplaceTemplate,
+  loadInstalledTemplates,
 } = store;
 
 const newAgentName = ref('');
@@ -46,10 +51,12 @@ const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
 const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
 
-onMounted(() => {
+onMounted(async () => {
   init();
   applyDarkMode();
   setupKeyboardShortcuts();
+  await loadTemplateSources();
+  await loadInstalledTemplates();
 });
 
 function setupKeyboardShortcuts() {
@@ -92,8 +99,67 @@ function toggleDarkMode() {
 }
 
 function applyDarkMode() {
-  document.documentElement.setAttribute('data-theme', darkMode.value ? 'dark' : 'light');
-  localStorage.setItem('opifex-theme', darkMode.value ? 'dark' : 'light');
+  const isDark = darkMode.value;
+  const root = document.documentElement;
+  root.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+  if (isDark) {
+    root.style.setProperty('--surface-base', '#16181B');
+    root.style.setProperty('--surface-card', '#202328');
+    root.style.setProperty('--surface-hover', '#2A2D34');
+    root.style.setProperty('--surface-muted', '#1E2126');
+    root.style.setProperty('--text-primary', '#F1F3F5');
+    root.style.setProperty('--text-secondary', '#9BA1A9');
+    root.style.setProperty('--text-muted', '#6E737C');
+    root.style.setProperty('--border', '#4A4F58');
+    root.style.setProperty('--border-focus', '#82BCF4');
+    root.style.setProperty('--border-hover', '#5A5F68');
+    root.style.setProperty('--primary', '#82BCF4');
+    root.style.setProperty('--primary-hover', '#98C8F7');
+    root.style.setProperty('--primary-fg', '#09192A');
+    root.style.setProperty('--primary-bg', 'rgba(130, 188, 244, 0.15)');
+    root.style.setProperty('--success', '#63B87E');
+    root.style.setProperty('--success-fg', '#E1F7EA');
+    root.style.setProperty('--success-bg', 'rgba(99, 184, 126, 0.15)');
+    root.style.setProperty('--danger', '#E06C6C');
+    root.style.setProperty('--danger-fg', '#FBE4E4');
+    root.style.setProperty('--danger-bg', 'rgba(224, 108, 108, 0.15)');
+    root.style.setProperty('--warning', '#E2B350');
+    root.style.setProperty('--warning-fg', '#FBE9D8');
+    root.style.setProperty('--warning-bg', 'rgba(226, 179, 80, 0.15)');
+    root.style.setProperty('--shadow-sm', '0 1px 2px rgba(0, 0, 0, 0.4)');
+    root.style.setProperty('--shadow-md', '0 4px 12px rgba(0, 0, 0, 0.5)');
+    root.style.setProperty('--shadow-lg', '0 12px 32px rgba(0, 0, 0, 0.6)');
+  } else {
+    root.style.removeProperty('--surface-base');
+    root.style.removeProperty('--surface-card');
+    root.style.removeProperty('--surface-hover');
+    root.style.removeProperty('--surface-muted');
+    root.style.removeProperty('--text-primary');
+    root.style.removeProperty('--text-secondary');
+    root.style.removeProperty('--text-muted');
+    root.style.removeProperty('--border');
+    root.style.removeProperty('--border-focus');
+    root.style.removeProperty('--border-hover');
+    root.style.removeProperty('--primary');
+    root.style.removeProperty('--primary-hover');
+    root.style.removeProperty('--primary-fg');
+    root.style.removeProperty('--primary-bg');
+    root.style.removeProperty('--success');
+    root.style.removeProperty('--success-fg');
+    root.style.removeProperty('--success-bg');
+    root.style.removeProperty('--danger');
+    root.style.removeProperty('--danger-fg');
+    root.style.removeProperty('--danger-bg');
+    root.style.removeProperty('--warning');
+    root.style.removeProperty('--warning-fg');
+    root.style.removeProperty('--warning-bg');
+    root.style.removeProperty('--shadow-sm');
+    root.style.removeProperty('--shadow-md');
+    root.style.removeProperty('--shadow-lg');
+  }
+
+  localStorage.setItem('opifex-theme', isDark ? 'dark' : 'light');
 }
 
 const currentAgent = computed(() => state.currentAgent);
@@ -113,6 +179,11 @@ const buildError = computed(() => state.buildError);
 const isDark = computed(() => darkMode.value);
 const compareVersionId = ref<string | null>(null);
 const compareVersion = computed(() => state.planVersions.find(v => v.id === compareVersionId.value));
+const templateSources = computed(() => state.templateSources);
+const installedTemplates = computed(() => state.installedTemplates);
+const marketplaceTemplates = computed(() => state.marketplaceTemplates);
+const marketplaceLoading = computed(() => state.marketplaceLoading);
+const selectedSourceId = ref<string | null>(null);
 
 async function handleSelectAgent(id: string) {
   await selectAgent(id);
@@ -174,6 +245,22 @@ async function handleSetApiKey(prov: string, key: string) {
 async function handleApiKeyChange(prov: string, e: Event) {
   const target = e.target as HTMLInputElement;
   state.apiKeys[prov as keyof typeof state.apiKeys] = target.value;
+}
+
+async function handleAddTemplateSource(name: string, url: string) {
+  await addTemplateSource(name, url);
+  await loadTemplateSources();
+}
+
+async function handleLoadMarketplaceTemplates(sourceId: string) {
+  await fetchMarketplaceTemplates(sourceId);
+}
+
+async function handleInstallMarketplaceTemplate(templateId: string, version: string, sourceId: string) {
+  const result = await installMarketplaceTemplate(templateId, version, sourceId);
+  if (result) {
+    await loadInstalledTemplates();
+  }
 }
 
 async function handlePlanUpdate(section: keyof AgentPlan, value: string | string[]) {
@@ -362,12 +449,22 @@ async function handleDuplicateAgent(id: string) {
         <AgentLibrary
           v-if="!currentAgent"
           :agents="state.agents"
+          :template-sources="templateSources"
+          :installed-templates="installedTemplates"
+          :marketplace-templates="marketplaceTemplates"
+          :marketplace-loading="marketplaceLoading"
+          :selected-source-id="selectedSourceId"
           @select="handleSelectAgent"
           @create="() => { showCreateDialog = true }"
           @rename="startRename"
           @duplicate="handleDuplicateAgent"
           @export="handleExportAgent"
           @delete="handleDeleteAgent"
+          @add-template-source="handleAddTemplateSource"
+          @load-template-sources="loadTemplateSources"
+          @load-marketplace-templates="handleLoadMarketplaceTemplates"
+          @install-marketplace-template="handleInstallMarketplaceTemplate"
+          @load-installed-templates="loadInstalledTemplates"
         />
       </div>
 
@@ -506,9 +603,9 @@ async function handleDuplicateAgent(id: string) {
   --text-muted: #8A8F98;
 
   /* Border */
-  --border: #D8D5D0;
+  --border: #B9B6B0;
   --border-focus: #7BB3E8;
-  --border-hover: #C9C6C0;
+  --border-hover: #A8A5A0;
 
   /* Interactive */
   --primary: #7BB3E8;
@@ -548,69 +645,6 @@ async function handleDuplicateAgent(id: string) {
   --space-8: 2rem;
 
   /* Typography scale */
-  --type-xs: 0.75rem;
-  --type-sm: 0.875rem;
-  --type-base: 1rem;
-  --type-lg: 1.125rem;
-  --type-xl: 1.25rem;
-  --type-display: 1.5rem;
-}
-
-[data-theme="dark"] {
-  /* Surfaces */
-  --surface-base: #16181B;
-  --surface-card: #202328;
-  --surface-hover: #2A2D34;
-  --surface-muted: #1E2126;
-
-  /* Text */
-  --text-primary: #F1F3F5;
-  --text-secondary: #9BA1A9;
-  --text-muted: #6E737C;
-
-  /* Border */
-  --border: #4A4F58;
-  --border-focus: #82BCF4;
-  --border-hover: #5A5F68;
-
-  /* Interactive */
-  --primary: #82BCF4;
-  --primary-hover: #98C8F7;
-  --primary-fg: #09192A;
-  --primary-bg: rgba(130, 188, 244, 0.15);
-
-  --success: #63B87E;
-  --success-fg: #E1F7EA;
-  --success-bg: rgba(99, 184, 126, 0.15);
-
-  --danger: #E06C6C;
-  --danger-fg: #FBE4E4;
-  --danger-bg: rgba(224, 108, 108, 0.15);
-
-  --warning: #E2B350;
-  --warning-fg: #FBE9D8;
-  --warning-bg: rgba(226, 179, 80, 0.15);
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
-
-  /* Radius — same across modes */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-
-  /* Spacing — same across modes */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-
-  /* Typography — same across modes */
   --type-xs: 0.75rem;
   --type-sm: 0.875rem;
   --type-base: 1rem;

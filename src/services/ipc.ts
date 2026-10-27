@@ -8,12 +8,15 @@ import type {
   CreateAgentInput,
   CreateConversationInput,
   DbMessage,
+  InstalledTemplate,
   OllamaModel,
   OllamaMessage,
   OllamaChatOutput,
   PlanVersion,
   SaveMessageInput,
   SavePlanVersionInput,
+  TemplateEntry,
+  TemplateSource,
   UpdateAgentInput,
 } from '@/types/agent';
 
@@ -210,4 +213,29 @@ export async function restorePlanVersion(versionId: string): Promise<AgentPlan> 
 
 export async function writeFile(path: string, content: string): Promise<void> {
   return invoke('write_file', { path, content });
+}
+
+export async function addTemplateSource(input: { name: string; url: string }): Promise<TemplateSource> {
+  return invoke('add_template_source', { input });
+}
+
+export async function listTemplateSources(): Promise<TemplateSource[]> {
+  return invoke('list_template_sources');
+}
+
+export async function fetchTemplates(sourceId: string): Promise<TemplateEntry[]> {
+  return invoke('fetch_templates', { sourceId });
+}
+
+export async function installTemplate(input: { templateId: string; version: string; sourceId: string }): Promise<{
+  agentId: string;
+  name: string;
+  templateId: string;
+  version: string;
+}> {
+  return invoke('install_template', { input });
+}
+
+export async function listInstalledTemplates(): Promise<InstalledTemplate[]> {
+  return invoke('list_installed_templates');
 }

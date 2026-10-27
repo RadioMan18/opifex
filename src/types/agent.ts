@@ -111,6 +111,34 @@ export interface OllamaModel {
   digest: string | null;
 }
 
+export interface TemplateSource {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  addedAt: string;
+}
+
+export interface TemplateEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  version: string;
+  author: string | null;
+  downloadUrl: string | null;
+  checksum: string | null;
+  specJson: unknown | null;
+  model: string | null;
+  isStarter: boolean;
+}
+
+export interface InstalledTemplate {
+  id: string;
+  templateId: string;
+  version: string;
+  installedAt: string;
+}
+
 export interface OllamaMessage {
   role: string;
   content: string;

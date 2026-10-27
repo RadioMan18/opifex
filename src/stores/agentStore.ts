@@ -4,10 +4,13 @@ import type {
   AgentListItem,
   AgentPlan,
   Conversation,
+  InstalledTemplate,
   Message,
   OllamaModel,
   OllamaMessage,
   PlanVersion,
+  TemplateEntry,
+  TemplateSource,
 } from '@/types/agent';
 import {
   createAgent as ipcCreateAgent,
@@ -36,6 +39,11 @@ import {
   savePlanVersion as ipcSavePlanVersion,
   listPlanVersions as ipcListPlanVersions,
   restorePlanVersion as ipcRestorePlanVersion,
+  addTemplateSource as ipcAddTemplateSource,
+  listTemplateSources as ipcListTemplateSources,
+  fetchTemplates as ipcFetchTemplates,
+  installTemplate as ipcInstallTemplate,
+  listInstalledTemplates as ipcListInstalledTemplates,
 } from '@/services/ipc';
 
 interface AgentState {
@@ -57,6 +65,10 @@ interface AgentState {
   buildError: string | null;
   rawStreamingContent: string | null;
   error: string | null;
+  templateSources: TemplateSource[];
+  installedTemplates: InstalledTemplate[];
+  marketplaceTemplates: TemplateEntry[];
+  marketplaceLoading: boolean;
 }
 
 const state = reactive<AgentState>({
@@ -78,6 +90,10 @@ const state = reactive<AgentState>({
   buildError: null,
   rawStreamingContent: null,
   error: null,
+  templateSources: [],
+  installedTemplates: [],
+  marketplaceTemplates: [],
+  marketplaceLoading: false,
 });
 
 const isInitialized = ref(false);
@@ -1011,6 +1027,72 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     }
   }
 
+  async function addTemplateSource(name: string, url: string): Promise<TemplateSource | null> {
+    try {
+      const source = await ipcAddTemplateSource({ name, url });
+      state.templateSources = [source, ...state.templateSources];
+      return source;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function loadTemplateSources(): Promise<TemplateSource[]> {
+    try {
+      const sources = await ipcListTemplateSources();
+      state.templateSources = sources;
+      return sources;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    }
+  }
+
+  async function fetchMarketplaceTemplates(sourceId: string): Promise<TemplateEntry[]> {
+    state.marketplaceLoading = true;
+    state.error = null;
+    try {
+      const templates = await ipcFetchTemplates(sourceId);
+      state.marketplaceTemplates = templates;
+      return templates;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    } finally {
+      state.marketplaceLoading = false;
+    }
+  }
+
+  async function installMarketplaceTemplate(
+    templateId: string,
+    version: string,
+    sourceId: string,
+  ): Promise<{ agentId: string; name: string; templateId: string; version: string } | null> {
+    try {
+      const result = await ipcInstallTemplate({ templateId, version, sourceId });
+      state.installedTemplates = [
+        { id: result.agentId, templateId: result.templateId, version: result.version, installedAt: new Date().toISOString() },
+        ...state.installedTemplates,
+      ];
+      return result;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return null;
+    }
+  }
+
+  async function loadInstalledTemplates(): Promise<InstalledTemplate[]> {
+    try {
+      const templates = await ipcListInstalledTemplates();
+      state.installedTemplates = templates;
+      return templates;
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+      return [];
+    }
+  }
+
   return {
     state,
     init,
@@ -1038,5 +1120,10 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     renameAgent,
     duplicateAgent,
     deleteCurrentAgent,
+    addTemplateSource,
+    loadTemplateSources,
+    fetchMarketplaceTemplates,
+    installMarketplaceTemplate,
+    loadInstalledTemplates,
   };
 }
