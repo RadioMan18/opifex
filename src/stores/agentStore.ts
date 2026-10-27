@@ -87,9 +87,9 @@ let failedAssistantMessageId: string | null = null;
 let streamingContent = '';
 let streamCleanup: (() => void) | null = null;
 
-function parseStringArray(value: unknown): string[] | undefined {
+function parseStringArray(value: unknown): (string | { action: string })[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+  if (!Array.isArray(value) || !value.every((item): item is string | { action: string } => typeof item === 'string' || (typeof item === 'object' && item !== null && 'action' in item))) {
     throw new Error('Oppy returned an invalid agent plan');
   }
   return value;
@@ -830,11 +830,14 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       }
       const plan: AgentPlan = {
         goal: typeof planObject.goal === 'string' ? planObject.goal : undefined,
-        steps: parseStringArray(planObject.steps),
-        tools: parseStringArray(planObject.tools),
-        knowledgeSources: parseStringArray(planObject.knowledgeSources),
-        triggers: parseStringArray(planObject.triggers),
-        outputs: parseStringArray(planObject.outputs),
+        steps: parseStringArray(planObject.steps)?.map((item) => {
+          const action = typeof item === 'string' ? item : item.action;
+          return { action, inputs: [], requiresApproval: false, approvalContext: undefined };
+        }),
+        tools: parseStringArray(planObject.tools)?.map((item) => (typeof item === 'string' ? item : item.action)),
+        knowledgeSources: parseStringArray(planObject.knowledgeSources)?.map((item) => (typeof item === 'string' ? item : item.action)),
+        triggers: parseStringArray(planObject.triggers)?.map((item) => (typeof item === 'string' ? item : item.action)),
+        outputs: parseStringArray(planObject.outputs)?.map((item) => (typeof item === 'string' ? item : item.action)),
       };
       const response = typeof parsedObject.response === 'string'
         ? parsedObject.response
@@ -911,6 +914,16 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     const newPlan = { ...state.currentPlan };
     if (section === 'goal') {
       newPlan.goal = value as string;
+    } else if (section === 'steps') {
+      const stepStrings = Array.isArray(value)
+        ? value.filter(Boolean)
+        : value.split(',').map(s => s.trim()).filter(Boolean);
+      newPlan.steps = stepStrings.map((action) => ({
+        action,
+        inputs: [],
+        requiresApproval: false,
+        approvalContext: undefined,
+      }));
     } else {
       newPlan[section] = Array.isArray(value)
         ? value.filter(Boolean)

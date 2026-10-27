@@ -37,3 +37,4 @@ src-tauri/target/release/bundle/
 *.log
 .turbo/
 marketing.md
+FEATURE_SPEC_V1_1_0.md

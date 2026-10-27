@@ -1,6 +1,13 @@
+export interface AgentPlanStep {
+  action: string;
+  inputs: string[];
+  requiresApproval: boolean;
+  approvalContext?: string;
+}
+
 export interface AgentPlan {
   goal?: string;
-  steps?: string[];
+  steps?: AgentPlanStep[];
   tools?: string[];
   knowledgeSources?: string[];
   triggers?: string[];

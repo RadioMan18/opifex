@@ -21,7 +21,7 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
   <div class="agent-library">
     <div class="library-header">
       <h3>Agent Library</h3>
-      <button class="btn-new" @click="props.onCreate">+ New Agent</button>
+      <button class="btn-new" @click="props.onCreate">New Agent</button>
     </div>
 
     <div class="library-section">
@@ -38,7 +38,9 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
             <div class="agent-desc">{{ agent.description }}</div>
           </div>
           <div class="agent-badge">Starter</div>
-          <button class="btn-clone" title="Clone starter" @click.stop="props.onDuplicate(agent.id)">⧉</button>
+          <button class="btn-clone" title="Clone starter" @click.stop="props.onDuplicate(agent.id)">
+            Clone
+          </button>
         </div>
       </div>
     </div>
@@ -57,15 +59,28 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
             <div class="agent-desc">{{ agent.description }}</div>
           </div>
           <div class="agent-actions">
-            <button class="btn-clone" title="Duplicate" @click.stop="props.onDuplicate(agent.id)">⧉</button>
-            <button class="btn-export" title="Export" @click.stop="props.onExport(agent.id)">⬇</button>
-            <button class="btn-delete" title="Delete" @click.stop="props.onDelete(agent.id)">×</button>
+            <button class="btn-clone" title="Duplicate" @click.stop="props.onDuplicate(agent.id)">
+              Clone
+            </button>
+            <button class="btn-export" title="Export" @click.stop="props.onExport(agent.id)">
+              Export
+            </button>
+            <button class="btn-delete" title="Delete" @click.stop="props.onDelete(agent.id)">
+              Delete
+            </button>
           </div>
         </div>
       </div>
     </div>
 
     <div v-else class="empty-state">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
       <p>No agents yet. Create one to get started.</p>
     </div>
   </div>
@@ -76,28 +91,28 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 1.5rem 1rem 1.5rem;
+  padding: 0 var(--space-6) var(--space-4) var(--space-6);
 }
 
 .library-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--type-xl);
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .library-section {
-  padding: 0 1.5rem;
+  padding: 0 var(--space-6);
 }
 
 .library-section h4 {
-  font-size: 0.75rem;
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 1.5rem 0 0.75rem 0;
+  margin: var(--space-6) 0 var(--space-3) 0;
 }
 
 .library-section h4:first-of-type {
@@ -107,24 +122,24 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 .agent-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .agent-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.875rem 1rem;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  background: var(--bg-secondary);
+  background: var(--surface-card);
   transition: all 0.15s ease;
 }
 
 .agent-item:hover {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
   transform: translateY(-1px);
 }
 
@@ -133,88 +148,111 @@ const userAgents = computed(() => props.agents.filter(a => !a.isStarter));
 }
 
 .agent-name {
-  font-size: 0.95rem;
+  font-size: var(--type-base);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .agent-desc {
-  font-size: 0.85rem;
+  font-size: var(--type-sm);
   color: var(--text-secondary);
-  margin-top: 0.125rem;
+  margin-top: var(--space-1);
 }
 
 .agent-badge {
-  font-size: 0.7rem;
+  font-size: var(--type-xs);
   font-weight: 600;
-  color: var(--accent);
-  background: rgba(59, 130, 246, 0.1);
-  padding: 0.2rem 0.6rem;
-  border-radius: 12px;
-  margin-left: 0.5rem;
+  color: var(--primary);
+  background: var(--primary-bg);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  margin-left: var(--space-2);
 }
 
 .agent-actions {
   display: flex;
-  gap: 0.375rem;
+  gap: var(--space-2);
 }
 
 .btn-clone, .btn-export, .btn-delete {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 6px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--type-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 1rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
 }
 
 .btn-clone {
-  background: var(--bg-muted);
+  background: var(--surface-card);
   color: var(--text-secondary);
 }
+
 .btn-clone:hover {
-  background: var(--border-hover);
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .btn-export {
-  background: var(--bg-muted);
+  background: var(--surface-card);
   color: var(--text-secondary);
 }
+
 .btn-export:hover {
-  background: var(--border-hover);
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .btn-delete {
-  background: transparent;
-  color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border-color: var(--danger);
 }
+
 .btn-delete:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--danger);
+  color: #ffffff;
+  border-color: var(--danger);
 }
 
 .btn-new {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-muted);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-new:hover {
-  background: var(--bg-tertiary);
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .empty-state {
-  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
   color: var(--text-muted);
-  font-size: 0.9rem;
   text-align: center;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.empty-state p {
+  font-size: var(--type-base);
+  margin: 0;
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
 import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
+import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
@@ -170,6 +171,11 @@ async function handleSetApiKey(prov: string, key: string) {
   await setApiKey(prov, key);
 }
 
+async function handleApiKeyChange(prov: string, e: Event) {
+  const target = e.target as HTMLInputElement;
+  state.apiKeys[prov as keyof typeof state.apiKeys] = target.value;
+}
+
 async function handlePlanUpdate(section: keyof AgentPlan, value: string | string[]) {
   await updatePlanField(section, value);
 }
@@ -244,11 +250,9 @@ async function handleImportAgent() {
 
   if (filePath && filePath.length > 0) {
     try {
-      // Read the file content using the Tauri read command via IPC
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-    const content = await readFile(filePath[0]);
-    const text = new TextDecoder().decode(content);
-    const agent = await importAgent(text);
+      const content = await tauriReadFile(filePath[0]);
+      const text = new TextDecoder().decode(content);
+      const agent = await importAgent(text);
       if (agent) {
         await selectAgent(agent.id);
       }
@@ -283,9 +287,7 @@ async function handleDuplicateAgent(id: string) {
   <div class="app-container">
     <div class="top-bar">
       <div class="app-brand">
-        <span class="brand-icon">⬢</span>
         <span class="brand-name">Opifex</span>
-        <span class="brand-tagline">Agent Builder</span>
       </div>
 
       <div class="top-bar-actions">
@@ -298,7 +300,6 @@ async function handleDuplicateAgent(id: string) {
         />
 
         <div class="provider-selector">
-          <label class="provider-label">Provider</label>
           <select
             v-model="provider"
             class="provider-select"
@@ -313,19 +314,19 @@ async function handleDuplicateAgent(id: string) {
             @click="showProviderDialog = true"
             title="Configure API keys"
           >
-            🔑
+            API Keys
           </button>
         </div>
 
-        <button class="btn-import" @click="showImportDialog = true" title="Import agent">⬆</button>
-        <button class="btn-new" @click="showCreateDialog = true" title="New agent">+ Agent</button>
+        <button class="btn-import" @click="showImportDialog = true" title="Import agent">Import</button>
+        <button class="btn-new" @click="showCreateDialog = true" title="New agent">New Agent</button>
         <button
           v-if="currentAgent"
           class="btn-save-agent-header"
           @click="handleExportAgent(currentAgent.id)"
-          title="Save agent with Windows Save dialog"
+          title="Save agent"
         >
-          💾 Save Agent
+          Save Agent
         </button>
         <button
           v-if="currentAgent"
@@ -333,10 +334,10 @@ async function handleDuplicateAgent(id: string) {
           @click="goHome"
           title="Return to library"
         >
-          ↥ Home
+          Library
         </button>
         <button class="btn-dark-toggle" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
-          {{ isDark ? '☀️' : '🌙' }}
+          {{ isDark ? 'Light' : 'Dark' }}
         </button>
       </div>
     </div>
@@ -454,7 +455,7 @@ async function handleDuplicateAgent(id: string) {
           <label>OpenAI API Key</label>
           <input
             :value="apiKeys.openai || ''"
-            @input="(e) => { state.apiKeys.openai = (e.target as HTMLInputElement).value }"
+            @input="(e) => handleApiKeyChange('openai', e)"
             type="password"
             placeholder="sk-..."
             class="form-input"
@@ -465,7 +466,7 @@ async function handleDuplicateAgent(id: string) {
           <label>Anthropic API Key</label>
           <input
             :value="apiKeys.anthropic || ''"
-            @input="(e) => { state.apiKeys.anthropic = (e.target as HTMLInputElement).value }"
+            @input="(e) => handleApiKeyChange('anthropic', e)"
             type="password"
             placeholder="sk-ant-..."
             class="form-input"
@@ -491,46 +492,181 @@ async function handleDuplicateAgent(id: string) {
 </template>
 
 <style scoped>
+/* Opifex design tokens — Operate mode, desktop */
 :root {
-  --bg-primary: #FAF8F5;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #FAF8F5;
-  --bg-muted: #FAF8F5;
-  --text-primary: #2D3139;
+  /* Surfaces */
+  --surface-base: #FAF7F3;
+  --surface-card: #FFFFFF;
+  --surface-hover: #F5F2ED;
+  --surface-muted: #F0ECE6;
+
+  /* Text */
+  --text-primary: #24262B;
   --text-secondary: #5A5F68;
-  --text-muted: #5A5F68;
-  --border: #4A4F58;
-  --border-hover: #4A4F58;
-  --input-bg: #FFFFFF;
-  --input-border: #4A4F58;
-  --accent: #7BB3E8;
-  --accent-hover: #639FD8;
+  --text-muted: #8A8F98;
+
+  /* Border */
+  --border: #D8D5D0;
+  --border-focus: #7BB3E8;
+  --border-hover: #C9C6C0;
+
+  /* Interactive */
+  --primary: #7BB3E8;
+  --primary-hover: #639FD8;
+  --primary-fg: #0F2840;
+  --primary-bg: rgba(123, 179, 232, 0.10);
+
   --success: #88CF9E;
-  --success-hover: #88CF9E;
+  --success-fg: #133821;
+  --success-bg: rgba(136, 207, 158, 0.10);
+
   --danger: #F29393;
-  --danger-hover: #F29393;
-  --shadow: rgba(0, 0, 0, 0.1);
+  --danger-fg: #4A1E1E;
+  --danger-bg: rgba(242, 147, 147, 0.10);
+
+  --warning: #F5CD79;
+  --warning-fg: #4A3A0F;
+  --warning-bg: rgba(245, 205, 121, 0.10);
+
+  /* Shadows — offset + blur, no zero-offset halos */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Spacing scale (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Typography scale */
+  --type-xs: 0.75rem;
+  --type-sm: 0.875rem;
+  --type-base: 1rem;
+  --type-lg: 1.125rem;
+  --type-xl: 1.25rem;
+  --type-display: 1.5rem;
 }
 
-[data-theme="dark"] .app-container {
-  --bg-primary: #16181B;
-  --bg-secondary: #202328;
-  --bg-tertiary: #16181B;
-  --bg-muted: #16181B;
+[data-theme="dark"] {
+  /* Surfaces */
+  --surface-base: #16181B;
+  --surface-card: #202328;
+  --surface-hover: #2A2D34;
+  --surface-muted: #1E2126;
+
+  /* Text */
   --text-primary: #F1F3F5;
   --text-secondary: #9BA1A9;
-  --text-muted: #9BA1A9;
-  --border: #6E737C;
-  --border-hover: #6E737C;
-  --input-bg: #202328;
-  --input-border: #6E737C;
-  --accent: #82BCF4;
-  --accent-hover: #98C8F7;
+  --text-muted: #6E737C;
+
+  /* Border */
+  --border: #4A4F58;
+  --border-focus: #82BCF4;
+  --border-hover: #5A5F68;
+
+  /* Interactive */
+  --primary: #82BCF4;
+  --primary-hover: #98C8F7;
+  --primary-fg: #09192A;
+  --primary-bg: rgba(130, 188, 244, 0.15);
+
   --success: #63B87E;
-  --success-hover: #63B87E;
+  --success-fg: #E1F7EA;
+  --success-bg: rgba(99, 184, 126, 0.15);
+
   --danger: #E06C6C;
-  --danger-hover: #E06C6C;
-  --shadow: rgba(0, 0, 0, 0.3);
+  --danger-fg: #FBE4E4;
+  --danger-bg: rgba(224, 108, 108, 0.15);
+
+  --warning: #E2B350;
+  --warning-fg: #FBE9D8;
+  --warning-bg: rgba(226, 179, 80, 0.15);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* Radius — same across modes */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Spacing — same across modes */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Typography — same across modes */
+  --type-xs: 0.75rem;
+  --type-sm: 0.875rem;
+  --type-base: 1rem;
+  --type-lg: 1.125rem;
+  --type-xl: 1.25rem;
+  --type-display: 1.5rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--surface-base);
+}
+
+body {
+  margin: 0;
+  font-size: var(--type-base);
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid var(--surface-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--border-focus);
 }
 
 .app-container {
@@ -538,34 +674,14 @@ async function handleDuplicateAgent(id: string) {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--bg-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--surface-base);
   color: var(--text-primary);
-
-  /* Light mode CSS custom properties (applied unscoped via .app-container) */
-  --bg-primary: #FAF8F5;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #FAF8F5;
-  --bg-muted: #FAF8F5;
-  --text-primary: #2D3139;
-  --text-secondary: #5A5F68;
-  --text-muted: #5A5F68;
-  --border: #4A4F58;
-  --border-hover: #4A4F58;
-  --input-bg: #FFFFFF;
-  --input-border: #4A4F58;
-  --accent: #7BB3E8;
-  --accent-hover: #639FD8;
-  --success: #88CF9E;
-  --success-hover: #88CF9E;
-  --danger: #F29393;
-  --danger-hover: #F29393;
-  --shadow: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .top-bar {
-  padding: 0.875rem 1.5rem;
-  background: var(--bg-primary);
+  padding: var(--space-4) var(--space-6);
+  background: var(--surface-card);
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -576,41 +692,32 @@ async function handleDuplicateAgent(id: string) {
 .app-brand {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-}
-
-.brand-icon {
-  font-size: 1.5rem;
+  gap: var(--space-3);
 }
 
 .brand-name {
-  font-size: 1.25rem;
+  font-size: var(--type-xl);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
-.brand-tagline {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .top-bar-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
 }
 
 .error-banner {
-  padding: 0.625rem 1.5rem;
-  background: var(--bg-tertiary);
-  color: var(--danger);
-  font-size: 0.875rem;
+  padding: var(--space-3) var(--space-6);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  font-size: var(--type-sm);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .panes {
@@ -621,10 +728,11 @@ async function handleDuplicateAgent(id: string) {
 
 .chat-pane-wrapper {
   flex: 1;
-  min-width: 320px;
+  min-width: 340px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-secondary);
+  background: var(--surface-card);
   border-right: 1px solid var(--border);
   overflow: hidden;
 }
@@ -638,101 +746,117 @@ async function handleDuplicateAgent(id: string) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(22, 24, 27, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
 }
 
 .modal {
-  background: var(--bg-secondary);
-  padding: 1.75rem;
-  border-radius: 12px;
-  min-width: 420px;
-  box-shadow: 0 20px 25px -5px var(--shadow), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  background: var(--surface-card);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  min-width: 440px;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
 }
 
 .modal h3 {
-  margin: 0 0 1.25rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 var(--space-5) 0;
+  font-size: var(--type-lg);
   font-weight: 600;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 .form-group label {
   display: block;
-  font-size: 0.875rem;
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--space-1);
+  letter-spacing: 0.02em;
 }
 
 .form-input {
   width: 100%;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  font-size: 0.95rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--type-base);
   font-family: inherit;
-  background: var(--input-bg);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(123, 179, 232, 0.1);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
 }
 
 .btn-cancel {
-  padding: 0.5625rem 1.125rem;
-  font-size: 0.9rem;
-  background: var(--bg-muted);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--type-sm);
+  background: var(--surface-muted);
   color: var(--text-secondary);
-  border: none;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-cancel:hover {
   background: var(--border-hover);
 }
 
-.btn-create {
-  padding: 0.5625rem 1.125rem;
-  font-size: 0.9rem;
-  background: var(--accent);
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
+.btn-primary {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--type-sm);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
 }
 
-.btn-create:hover:not(:disabled) {
-  background: var(--accent-hover);
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
-.btn-create:disabled {
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-primary:disabled {
   background: var(--border-hover);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
 .version-save-bar {
-  padding: 0.75rem 1.5rem;
-  background: var(--bg-primary);
+  padding: var(--space-4) var(--space-6);
+  background: var(--surface-card);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -741,7 +865,7 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .version-save-bar label {
-  font-size: 0.8rem;
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -750,42 +874,43 @@ async function handleDuplicateAgent(id: string) {
 
 .version-input {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  font-size: 0.9rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+font-size: var(--type-base);
   font-family: inherit;
-  background: var(--input-bg);
+  background: var(--surface-card);
+  color: var(--text-primary);
 }
 
 .version-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--border-focus);
 }
 
 .btn-save-version-bar {
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
   background: var(--success);
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
+  color: var(--success-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .btn-save-version-bar:hover {
-  background: var(--success-hover);
+  background: #7BB3E8;
 }
 
 .provider-selector {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-3);
 }
 
 .provider-label {
-  font-size: 0.8rem;
+  font-size: var(--type-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -793,91 +918,94 @@ async function handleDuplicateAgent(id: string) {
 }
 
 .provider-select {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  font-size: 0.9rem;
-  background: var(--input-bg);
+padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--type-base);
+  background: var(--surface-card);
   color: var(--text-primary);
   min-width: 110px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .provider-select:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--border-focus);
 }
 
 .btn-api-key {
-  padding: 0.5rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2);
+  background: var(--surface-card);
   color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--type-base);
 }
 
 .btn-api-key:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
 }
 
 .btn-import, .btn-new {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
 }
 
 .btn-import:hover, .btn-new:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
 }
 
 .btn-save-agent-header {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
   color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-2);
 }
+
 .btn-save-agent-header:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
 }
 
 .btn-home {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
   color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
 }
+
 .btn-home:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
 }
 
 .btn-dark-toggle {
-  padding: 0.5rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2);
+  background: var(--surface-card);
   color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--type-base);
 }
 
 .btn-dark-toggle:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
 }
 </style>

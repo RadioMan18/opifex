@@ -10,6 +10,7 @@ defineProps({
   currentAgentName: { type: String, required: false, default: '' },
   interviewing: { type: Boolean, required: false, default: false },
   buildError: { type: [String] as PropType<string | null>, required: false, default: null },
+  modelWarmedUp: { type: Boolean, required: false, default: true },
 });
 
 const emit = defineEmits(['send', 'build', 'retry', 'new-conversation']);
@@ -19,7 +20,7 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null);
 function adjustHeight() {
   if (!textareaRef.value) return;
   textareaRef.value.style.height = 'auto';
-  textareaRef.value.style.height = `${Math.min(textareaRef.value.scrollHeight, 160)}px`;
+  textareaRef.value.style.height = `${Math.min(textareaRef.value.scrollHeight, 120)}px`;
 }
 
 async function handleSend() {
@@ -53,9 +54,19 @@ function formatTime(iso: string): string {
 
 <template>
   <div class="chat-pane">
+    <div v-if="!modelWarmedUp" class="warming-up">
+      <div class="warming-spinner"></div>
+      <p>Oppy is warming up. Please wait a moment.</p>
+    </div>
+
     <div class="chat-header">
       <div class="chat-title">
-        <span class="chat-icon">🤖</span>
+        <div class="chat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-7 7h-4a7 7 0 0 1-7-7V5a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7Z"/>
+          </svg>
+        </div>
         <div>
           <h2>{{ currentAgentName || 'Oppy' }}</h2>
           <div class="chat-subtitle">
@@ -67,8 +78,9 @@ function formatTime(iso: string): string {
         </div>
       </div>
       <div class="chat-actions">
-        <button v-if="currentAgentName" class="btn-new-chat" @click="emit('new-conversation')" title="Start a fresh conversation and clear plan">💬 New Chat</button>
-        <button v-if="interviewing" class="btn-build" @click="handleBuild">Build Agent</button>
+        <button v-if="currentAgentName" class="btn-new-chat" @click="emit('new-conversation')" title="Start a fresh conversation">New Chat</button>
+        <button v-if="interviewing && modelWarmedUp" class="btn-primary" @click="handleBuild">Build Agent</button>
+        <button v-if="interviewing && !modelWarmedUp" class="btn-primary" disabled>Warming up…</button>
         <button v-if="!interviewing && buildError" class="btn-retry" @click="handleRetry">Retry</button>
         <span v-if="!interviewing && buildError" class="build-error">{{ buildError }}</span>
       </div>
@@ -76,7 +88,13 @@ function formatTime(iso: string): string {
 
     <div class="agent-library-placeholder" v-if="!currentAgentName">
       <div class="empty-state">
-        <div class="empty-icon">📦</div>
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+        </div>
         <p>Select or create an agent from the library to start building with Oppy.</p>
       </div>
     </div>
@@ -95,7 +113,11 @@ function formatTime(iso: string): string {
           <div class="message-text">{{ msg.content }}</div>
           <div v-if="msg.turnPlanJson" class="message-plan-card">
             <div class="plan-card-header">
-              <span class="plan-card-icon">📋</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
               <span class="plan-card-title">Agent Plan</span>
             </div>
             <div v-if="msg.turnPlanJson.goal" class="plan-card-goal">
@@ -104,7 +126,7 @@ function formatTime(iso: string): string {
             <div v-if="msg.turnPlanJson.steps && msg.turnPlanJson.steps.length" class="plan-card-steps">
               <strong>Steps ({{ msg.turnPlanJson.steps.length }}):</strong>
               <ol class="plan-steps-preview">
-                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step }}</li>
+                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step.action }}</li>
                 <li v-if="msg.turnPlanJson.steps.length > 3" class="more-steps">
                   + {{ msg.turnPlanJson.steps.length - 3 }} more steps (see Plan panel)
                 </li>
@@ -128,17 +150,20 @@ function formatTime(iso: string): string {
       </div>
     </div>
 
-    <div class="chat-input-area" v-if="currentAgentName">
+    <div class="chat-input-area" v-if="currentAgentName && modelWarmedUp">
       <textarea
         ref="textareaRef"
         v-model="newMessage"
-        placeholder="Tell Oppy what you want your agent to do... (Shift+Enter for new line)"
+        placeholder="Tell Oppy what you want your agent to do…"
         rows="1"
         @keydown="handleKeyDown"
         @input="adjustHeight"
         class="chat-textarea"
       ></textarea>
       <button class="btn-send" @click="handleSend" :disabled="streaming || !newMessage.trim()">Send</button>
+    </div>
+    <div v-if="currentAgentName && !modelWarmedUp" class="chat-input-disabled">
+      <span class="disabled-label">Input disabled while model is warming up.</span>
     </div>
   </div>
 </template>
@@ -148,110 +173,151 @@ function formatTime(iso: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary);
-  border-right: 1px solid #e5e5e5;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border);
   overflow: hidden;
+  position: relative;
 }
 
 .chat-header {
-  padding: 1rem 1.5rem;
+  padding: var(--space-4) var(--space-6);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
   flex-shrink: 0;
-  background: var(--bg-tertiary);
+  background: var(--surface-hover);
 }
 
 .chat-icon {
-  font-size: 1.5rem;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-bg);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .chat-title h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--type-lg);
   font-weight: 600;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .chat-subtitle {
-  font-size: 0.8rem;
+  font-size: var(--type-xs);
   color: var(--text-secondary);
-  margin-top: 0.125rem;
+  margin-top: var(--space-1);
 }
 
 .chat-actions {
   margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.btn-new-chat {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-new-chat:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .btn-build {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 6px;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
 }
 
-.btn-build:hover {
-  background: #F0ECE6;
+.btn-build:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-build:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-build:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .btn-retry {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  background: var(--surface-card);
   color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-retry:hover {
-  background: #F0ECE6;
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .build-error {
-  font-size: 0.8rem;
-  color: var(--danger);
-  margin-left: 0.75rem;
-  max-width: 300px;
+  font-size: var(--type-xs);
+  color: var(--danger-fg);
+  margin-left: var(--space-2);
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.btn-new-chat {
-  padding: 0.5rem 0.875rem;
-  font-size: 0.875rem;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
+.warming-up {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
-  transition: all 0.2s;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: var(--space-8);
 }
 
-.btn-new-chat:hover {
-  background: #F0ECE6;
-  border-color: var(--border-hover);
+.warming-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: var(--space-3);
 }
 
-.model-select {
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  font-size: 0.9rem;
-  background: var(--input-bg);
-  color: var(--text-primary);
-  min-width: 140px;
+.warming-up p {
+  font-size: var(--type-sm);
 }
 
 .agent-library-placeholder {
@@ -267,26 +333,29 @@ function formatTime(iso: string): string {
 }
 
 .empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+  margin: 0 auto var(--space-3);
 }
 
 .empty-state p {
-  font-size: 0.95rem;
+  font-size: var(--type-base);
+  margin: 0;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem;
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-5);
 }
 
 .message {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   max-width: 85%;
   animation: fadeIn 0.2s ease-out;
 }
@@ -303,7 +372,7 @@ function formatTime(iso: string): string {
 .message-avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -313,12 +382,12 @@ function formatTime(iso: string): string {
 }
 
 .message.user .message-avatar {
-  background: var(--accent);
+  background: var(--primary);
   color: #ffffff;
 }
 
 .message.assistant .message-avatar {
-  background: var(--bg-tertiary);
+  background: var(--surface-muted);
   color: var(--text-secondary);
   border: 1px solid var(--border);
 }
@@ -326,7 +395,7 @@ function formatTime(iso: string): string {
 .message-content {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .message.user .message-content {
@@ -340,30 +409,31 @@ function formatTime(iso: string): string {
 }
 
 .message-text {
-  padding: 0.625rem 0.875rem;
-  border-radius: 12px;
-  font-size: 0.95rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--type-base);
   line-height: 1.5;
   white-space: pre-wrap;
+  max-width: 100%;
 }
 
 .message.user .message-text {
-  background: var(--accent);
+  background: var(--primary);
   color: #ffffff;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 .message.assistant .message-text {
-  background: var(--bg-tertiary);
+  background: var(--surface-hover);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: var(--radius-sm);
 }
 
 .message-meta {
   display: flex;
-  gap: 0.5rem;
-  font-size: 0.7rem;
+  gap: var(--space-2);
+  font-size: var(--type-xs);
   color: var(--text-muted);
 }
 
@@ -376,11 +446,11 @@ function formatTime(iso: string): string {
 }
 
 .streaming-indicator {
-  color: var(--accent);
-  font-size: 0.7rem;
+  color: var(--primary);
+  font-size: var(--type-xs);
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .typing-dots {
@@ -390,11 +460,11 @@ function formatTime(iso: string): string {
 }
 
 .typing-dots i {
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.35;
+  opacity: 0.4;
   animation: typing-dot 1s infinite ease-in-out;
 }
 
@@ -407,16 +477,16 @@ function formatTime(iso: string): string {
 }
 
 @keyframes typing-dot {
-  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  0%, 60%, 100% { opacity: 0.4; transform: translateY(0); }
   30% { opacity: 1; transform: translateY(-2px); }
 }
 
 .chat-input-area {
-  padding: 1rem;
+  padding: var(--space-4);
   border-top: 1px solid var(--border);
-  background: var(--bg-tertiary);
+  background: var(--surface-hover);
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: flex-end;
   flex-shrink: 0;
 }
@@ -425,83 +495,106 @@ function formatTime(iso: string): string {
   flex: 1;
   min-height: 44px;
   max-height: 120px;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  font-size: 0.95rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--type-base);
   resize: vertical;
   font-family: inherit;
-  background: var(--input-bg);
+  background: var(--surface-card);
   color: var(--text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .chat-textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(123, 179, 232, 0.1);
 }
 
 .btn-send {
-  padding: 0.625rem 1.25rem;
-  font-size: 0.95rem;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 3px solid var(--border);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--type-sm);
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
+  white-space: nowrap;
 }
 
 .btn-send:hover:not(:disabled) {
-  background: #F0ECE6;
+  background: var(--primary-hover);
+}
+
+.btn-send:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-send:disabled {
-  background: var(--bg-tertiary);
+  background: var(--surface-muted);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
+.chat-input-disabled {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.disabled-label {
+  display: inline-block;
+}
+
 .message-plan-card {
-  margin-top: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: rgba(59, 130, 246, 0.06);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 8px;
-  font-size: 0.88rem;
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  font-size: var(--type-sm);
   color: var(--text-primary);
 }
 
 .plan-card-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-1);
   font-weight: 600;
-  color: var(--accent);
-  margin-bottom: 0.4rem;
+  color: var(--primary);
+  margin-bottom: var(--space-2);
 }
 
 .plan-card-goal {
-  margin-bottom: 0.4rem;
-  line-height: 1.4;
+  margin-bottom: var(--space-2);
+  line-height: 1.5;
 }
 
 .plan-card-steps strong {
   display: block;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
 }
 
 .plan-steps-preview {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
 .more-steps {
   list-style-type: none;
   font-style: italic;
   color: var(--text-secondary);
-  margin-top: 0.2rem;
+  margin-top: var(--space-1);
 }
 
 @keyframes fadeIn {
@@ -509,8 +602,7 @@ function formatTime(iso: string): string {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
