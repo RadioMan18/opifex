@@ -110,10 +110,10 @@ function applyDarkMode() {
     root.style.setProperty('--surface-muted', '#1E2126');
     root.style.setProperty('--text-primary', '#F1F3F5');
     root.style.setProperty('--text-secondary', '#9BA1A9');
-    root.style.setProperty('--text-muted', '#6E737C');
-    root.style.setProperty('--border', '#4A4F58');
+    root.style.setProperty('--text-muted', '#D0D0D0');
+    root.style.setProperty('--border', '#7A7F88');
     root.style.setProperty('--border-focus', '#82BCF4');
-    root.style.setProperty('--border-hover', '#8A8F98');
+    root.style.setProperty('--border-hover', '#B8B8B8');
     root.style.setProperty('--primary', '#82BCF4');
     root.style.setProperty('--primary-hover', '#98C8F7');
     root.style.setProperty('--primary-fg', '#09192A');
@@ -600,16 +600,16 @@ async function handleDuplicateAgent(id: string) {
   /* Text */
   --text-primary: #24262B;
   --text-secondary: #5A5F68;
-  --text-muted: #8A8F98;
+  --text-muted: #6E737C;
 
   /* Border */
-  --border: #B9B6B0;
-  --border-focus: #7BB3E8;
-  --border-hover: #A8A5A0;
+  --border: #8A8F98;
+  --border-focus: #3A7BD5;
+  --border-hover: #6E737C;
 
   /* Interactive */
-  --primary: #7BB3E8;
-  --primary-hover: #639FD8;
+  --primary: #4A90E2;
+  --primary-hover: #357ABD;
   --primary-fg: #0F2840;
   --primary-bg: rgba(123, 179, 232, 0.10);
 
@@ -860,6 +860,7 @@ body {
 
 .btn-cancel:hover {
   background: var(--border-hover);
+  border-color: var(--border-focus);
 }
 
 .btn-primary {
@@ -935,6 +936,7 @@ font-size: var(--type-base);
 
 .btn-save-version-bar:hover {
   background: #7BB3E8;
+  border-color: var(--border-focus);
 }
 
 .provider-selector {
@@ -979,6 +981,7 @@ padding: var(--space-2) var(--space-3);
 
 .btn-api-key:hover {
   background: var(--surface-hover);
+  border-color: var(--border-focus);
 }
 
 .btn-import, .btn-new {
@@ -992,8 +995,14 @@ padding: var(--space-2) var(--space-3);
   font-weight: 500;
 }
 
-.btn-import:hover, .btn-new:hover {
+.btn-import:hover {
   background: var(--surface-hover);
+  border-color: var(--border-focus);
+}
+
+.btn-new:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .btn-save-agent-header {
@@ -1012,6 +1021,7 @@ padding: var(--space-2) var(--space-3);
 
 .btn-save-agent-header:hover {
   background: var(--surface-hover);
+  border-color: var(--border-focus);
 }
 
 .btn-home {
@@ -1027,6 +1037,7 @@ padding: var(--space-2) var(--space-3);
 
 .btn-home:hover {
   background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
 .btn-dark-toggle {
@@ -1041,5 +1052,6 @@ padding: var(--space-2) var(--space-3);
 
 .btn-dark-toggle:hover {
   background: var(--surface-hover);
+  border-color: var(--border-focus);
 }
 </style>

@@ -256,6 +256,7 @@ function formatTime(iso: string): string {
 
 .btn-build:hover:not(:disabled) {
   background: var(--primary-hover);
+  border-color: var(--border-focus);
 }
 
 .btn-build:active:not(:disabled) {
@@ -528,6 +529,7 @@ function formatTime(iso: string): string {
 
 .btn-send:hover:not(:disabled) {
   background: var(--primary-hover);
+  border-color: var(--border-focus);
 }
 
 .btn-send:active:not(:disabled) {
