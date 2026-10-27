@@ -60,6 +60,7 @@ onMounted(async () => {
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value;
+  applyDarkMode();
 }
 
 function applyDarkMode() {
@@ -75,9 +76,9 @@ function applyDarkMode() {
     root.style.setProperty('--text-primary', '#F9FAFB');
     root.style.setProperty('--text-secondary', '#9CA3AF');
     root.style.setProperty('--text-muted', '#D1D5DB');
-    root.style.setProperty('--border', '#374151');
+    root.style.setProperty('--border', '#4B5563');
     root.style.setProperty('--border-focus', '#3B82F6');
-    root.style.setProperty('--border-hover', '#4B5563');
+    root.style.setProperty('--border-hover', '#6B7280');
     root.style.setProperty('--primary', '#3B82F6');
     root.style.setProperty('--primary-hover', '#2563EB');
     root.style.setProperty('--primary-fg', '#FFFFFF');
@@ -181,6 +182,16 @@ async function handleCreateAgent() {
 async function handleDeleteAgent(id: string) {
   if (!confirm(`Delete agent "${id}"?`)) return;
   await deleteCurrentAgent();
+}
+
+async function handleGoHome() {
+  state.currentAgent = null;
+  state.currentPlan = null;
+  state.messages = [];
+  state.conversations = [];
+  state.currentConversationId = null;
+  state.planVersions = [];
+  state.interviewing = true;
 }
 
 async function handlePullModel(modelName: string) {
@@ -345,6 +356,12 @@ async function setupKeyboardShortcuts() {
           <button class="btn-primary" @click="showCreateDialog = true" title="New agent">
             New Agent
           </button>
+        </div>
+
+        <div class="action-group" v-if="currentAgent">
+<button class="btn-secondary" @click="handleGoHome" title="Return to library">
+  Home
+</button>
         </div>
 
         <div class="action-group">
@@ -515,9 +532,9 @@ async function setupKeyboardShortcuts() {
   --text-muted: #9CA3AF;
 
   /* Border */
-  --border: #E5E7EB;
+  --border: #8A8F98;
   --border-focus: #2563EB;
-  --border-hover: #D1D5DB;
+  --border-hover: #6B7280;
 
   /* Interactive */
   --primary: #2563EB;
@@ -662,13 +679,13 @@ body {
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-6);
 }
 
 .action-group {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .btn-secondary {
