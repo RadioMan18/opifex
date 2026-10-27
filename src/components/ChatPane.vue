@@ -326,7 +326,7 @@ function formatTime(iso: string): string {
   flex-direction: column;
   align-items: center;
   padding-top: 0;
-  padding-bottom: 4.5rem;
+  padding-bottom: 2.5rem;
 }
 
 .empty-state {
