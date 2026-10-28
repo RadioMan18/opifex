@@ -51,7 +51,7 @@ import { useGraphStore } from '@/stores/graphStore';
 const store = useGraphStore();
 
 const props = defineProps<{
-  nodeId: string;
+  nodeId?: string;
 }>();
 
 const graph = computed(() => store.graph);
@@ -114,6 +114,7 @@ function toggleToolAttachment(toolNodeId: string) {
     const targetInput = targetBlock.inputs.find((p) => p.direction === 'input');
 
     if (!toolOutput || !targetInput) return;
+    if (!props.nodeId) return;
 
     store.addEdge({
       source: toolNodeId,

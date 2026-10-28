@@ -3,14 +3,20 @@ import { onMounted, ref, computed } from 'vue';
 import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
 import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
+import { useGraphStore } from '@/stores/graphStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
+import AgentCanvas from '@/components/AgentCanvas.vue';
+import BlockPalette from '@/components/BlockPalette.vue';
+import NodeInspector from '@/components/NodeInspector.vue';
+import AgentToolDrawer from '@/components/inspector/AgentToolDrawer.vue';
 import { writeFile as ipcWriteFile } from '@/services/ipc';
-import type { AgentPlan, InstalledTemplate, TemplateSource } from '@/types/agent';
+import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
 const store = useAgentStore();
+const graphStore = useGraphStore();
 const {
   state,
   init,
@@ -49,6 +55,168 @@ const renameName = ref('');
 const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
 const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
+const viewMode = ref<'canvas' | 'oppy'>('canvas');
+
+const defaultBlocks = ref<BlockDefinition[]>([
+  {
+    id: 'builtin:input',
+    version: 1,
+    name: 'Input',
+    description: 'Entry point trigger — every graph requires exactly one.',
+    category: 'Triggers',
+    kind: 'trigger',
+    origin: 'user',
+    inputs: [],
+    outputs: [
+      { id: 'message', name: 'Message', type: 'string', direction: 'output', required: false },
+      { id: 'payload', name: 'Payload', type: 'json', direction: 'output', required: false },
+    ],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:llm-prompt',
+    version: 1,
+    name: 'Prompt LLM',
+    description: 'Send a message to the LLM provider and return completion.',
+    category: 'LLM',
+    kind: 'llm',
+    origin: 'user',
+    inputs: [
+      { id: 'message', name: 'Message', type: 'string', direction: 'input', required: true },
+      { id: 'system', name: 'System', type: 'string', direction: 'input', required: false },
+    ],
+    outputs: [{ id: 'completion', name: 'Completion', type: 'string', direction: 'output', required: false }],
+    parameters: [
+      { id: 'model', name: 'model', type: 'string', label: 'Model', required: false, defaultValue: 'llama3.2', sensitive: false },
+      { id: 'temperature', name: 'temperature', type: 'number', label: 'Temperature', required: false, defaultValue: 0.7, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:agent',
+    version: 1,
+    name: 'Agent',
+    description: 'Autonomous agent that can invoke attached tools.',
+    category: 'Agents',
+    kind: 'agent',
+    origin: 'user',
+    inputs: [
+      { id: 'prompt', name: 'Prompt', type: 'string', direction: 'input', required: true },
+      { id: 'tools', name: 'Tools', type: 'tool', direction: 'input', required: false },
+    ],
+    outputs: [
+      { id: 'answer', name: 'Answer', type: 'string', direction: 'output', required: false },
+      { id: 'trace', name: 'Trace', type: 'json', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'max_iterations', name: 'max_iterations', type: 'number', label: 'Max Iterations', required: false, defaultValue: 8, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:http-request',
+    version: 1,
+    name: 'HTTP Request',
+    description: 'Generic HTTP request tool for agents.',
+    category: 'Tools',
+    kind: 'tool',
+    origin: 'user',
+    inputs: [
+      { id: 'url', name: 'URL', type: 'string', direction: 'input', required: true },
+      { id: 'body', name: 'Body', type: 'any', direction: 'input', required: false },
+      { id: 'headers', name: 'Headers', type: 'object', direction: 'input', required: false },
+    ],
+    outputs: [
+      { id: 'response', name: 'Response', type: 'json', direction: 'output', required: false },
+      { id: 'tool', name: 'Tool', type: 'tool', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'method', name: 'method', type: 'select', label: 'Method', required: false, defaultValue: 'GET', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:condition',
+    version: 1,
+    name: 'Condition',
+    description: 'Branch execution based on a boolean condition.',
+    category: 'Control Flow',
+    kind: 'control',
+    origin: 'user',
+    inputs: [{ id: 'value', name: 'Value', type: 'any', direction: 'input', required: true }],
+    outputs: [
+      { id: 'true', name: 'True', type: 'any', direction: 'output', required: false },
+      { id: 'false', name: 'False', type: 'any', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'condition', name: 'condition', type: 'string', label: 'Condition', required: false, defaultValue: '{{ input.count > 5 }}', sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:merge',
+    version: 1,
+    name: 'Merge',
+    description: 'Merge multiple inputs into a single output.',
+    category: 'Control Flow',
+    kind: 'control',
+    origin: 'user',
+    inputs: [{ id: 'inputs', name: 'Inputs', type: 'any', direction: 'input', required: false }],
+    outputs: [{ id: 'merged', name: 'Merged', type: 'any', direction: 'output', required: false }],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:code-js',
+    version: 1,
+    name: 'Code (JS)',
+    description: 'Sandboxed JavaScript execution (Developer mode).',
+    category: 'Utilities',
+    kind: 'utility',
+    origin: 'user',
+    inputs: [{ id: 'input', name: 'Input', type: 'any', direction: 'input', required: true }],
+    outputs: [
+      { id: 'output', name: 'Output', type: 'any', direction: 'output', required: false },
+      { id: 'tool', name: 'Tool', type: 'tool', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'code', name: 'code', type: 'code', label: 'Code', required: false, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:final-answer',
+    version: 1,
+    name: 'Final Answer',
+    description: 'Terminal output block — returns result to user.',
+    category: 'Outputs',
+    kind: 'output',
+    origin: 'user',
+    inputs: [{ id: 'message', name: 'Message', type: 'string', direction: 'input', required: true }],
+    outputs: [],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+]);
+
+const selectedCanvasNodeId = computed(() => graphStore.selectedNodeId ?? undefined);
 
 onMounted(async () => {
   init();
@@ -165,6 +333,12 @@ async function handleNewConversation() {
   if (currentAgent.value) {
     await createNewConversation();
   }
+}
+
+function onBlockDragStart(block: BlockDefinition) {
+  // Block drag start is handled by BlockPalette's native drag events.
+  // The canvas drop handler receives the block via dataTransfer.
+  console.log('Block drag start:', block.id);
 }
 
 async function handleCreateAgent() {
@@ -358,6 +532,25 @@ async function setupKeyboardShortcuts() {
           </button>
         </div>
 
+        <div class="action-group">
+          <button
+            class="btn-text"
+            :class="viewMode === 'canvas' ? 'btn-active' : ''"
+            @click="viewMode = 'canvas'"
+            title="Canvas mode"
+          >
+            Canvas
+          </button>
+          <button
+            class="btn-text"
+            :class="viewMode === 'oppy' ? 'btn-active' : ''"
+            @click="viewMode = 'oppy'"
+            title="Oppy chat mode"
+          >
+            Oppy
+          </button>
+        </div>
+
         <div class="action-group" v-if="currentAgent">
 <button class="btn-secondary" @click="handleGoHome" title="Return to library">
   Home
@@ -375,57 +568,86 @@ async function setupKeyboardShortcuts() {
     <div class="error-banner" v-if="error && !streaming">{{ error }}</div>
 
     <div class="panes">
-      <div class="chat-pane-wrapper">
-        <ChatPane
-          v-if="currentAgent"
-          :messages="messages"
-          :streaming="streaming"
-          :streaming-msg-id="streamingMsgId ?? ''"
-          :current-agent-name="currentAgent?.name ?? ''"
-          :interviewing="interviewing"
-          :build-error="buildError"
-          @send="handleSendMessage"
-          @build="confirmBuild"
-          @retry="retryBuild"
-          @new-conversation="handleNewConversation"
-        />
+      <div v-if="viewMode === 'canvas'" class="canvas-layout">
+        <div class="canvas-palette">
+          <BlockPalette :blocks="defaultBlocks" @block-drag-start="onBlockDragStart" />
+        </div>
 
-        <AgentLibrary
-          v-if="!currentAgent"
-          :agents="state.agents"
-          :template-sources="templateSources"
-          :installed-templates="installedTemplates"
-          :marketplace-templates="marketplaceTemplates"
-          :marketplace-loading="marketplaceLoading"
-          :selected-source-id="selectedSourceId"
-          @select="handleSelectAgent"
-          @create="() => { showCreateDialog = true }"
-          @rename="startRename"
-          @duplicate="handleDuplicateAgent"
-          @export="handleExportAgent"
-          @delete="handleDeleteAgent"
-          @add-template-source="handleAddTemplateSource"
-          @load-template-sources="loadTemplateSources"
-          @load-marketplace-templates="handleLoadMarketplaceTemplates"
-          @install-marketplace-template="handleInstallMarketplaceTemplate"
-          @load-installed-templates="loadInstalledTemplates"
-        />
+        <div class="canvas-main">
+          <div class="canvas-toolbar">
+            <span class="canvas-title">Agent Canvas</span>
+            <div class="canvas-toolbar-actions">
+              <button
+                class="btn-secondary"
+                @click="viewMode = 'oppy'"
+                title="Switch to Oppy chat mode"
+              >
+                Switch to Oppy
+              </button>
+            </div>
+          </div>
+          <AgentCanvas />
+        </div>
+
+        <div class="canvas-inspector">
+          <NodeInspector :nodeId="selectedCanvasNodeId" />
+          <AgentToolDrawer :nodeId="selectedCanvasNodeId" />
+        </div>
       </div>
 
-      <div class="divider"></div>
+      <div v-else class="oppy-layout">
+        <div class="chat-pane-wrapper">
+          <ChatPane
+            v-if="currentAgent"
+            :messages="messages"
+            :streaming="streaming"
+            :streaming-msg-id="streamingMsgId ?? ''"
+            :current-agent-name="currentAgent?.name ?? ''"
+            :interviewing="interviewing"
+            :build-error="buildError"
+            @send="handleSendMessage"
+            @build="confirmBuild"
+            @retry="retryBuild"
+            @new-conversation="handleNewConversation"
+          />
 
-      <PlanPane
-        :plan="currentPlan"
-        :agent-name="currentAgent?.name || 'Agent'"
-        :versions="planVersions"
-        :compare-version-id="compareVersionId"
-        :compare-version="compareVersion"
-        @update="handlePlanUpdate"
-        @save-version="handleSaveVersion"
-        @restore-version="handleRestoreVersion"
-        @compare-version="setCompareVersion"
-        @export-agent="handleExportAgent"
-      />
+          <AgentLibrary
+            v-if="!currentAgent"
+            :agents="state.agents"
+            :template-sources="templateSources"
+            :installed-templates="installedTemplates"
+            :marketplace-templates="marketplaceTemplates"
+            :marketplace-loading="marketplaceLoading"
+            :selected-source-id="selectedSourceId"
+            @select="handleSelectAgent"
+            @create="() => { showCreateDialog = true }"
+            @rename="startRename"
+            @duplicate="handleDuplicateAgent"
+            @export="handleExportAgent"
+            @delete="handleDeleteAgent"
+            @add-template-source="handleAddTemplateSource"
+            @load-template-sources="loadTemplateSources"
+            @load-marketplace-templates="handleLoadMarketplaceTemplates"
+            @install-marketplace-template="handleInstallMarketplaceTemplate"
+            @load-installed-templates="loadInstalledTemplates"
+          />
+        </div>
+
+        <div class="divider"></div>
+
+        <PlanPane
+          :plan="currentPlan"
+          :agent-name="currentAgent?.name || 'Agent'"
+          :versions="planVersions"
+          :compare-version-id="compareVersionId"
+          :compare-version="compareVersion"
+          @update="handlePlanUpdate"
+          @save-version="handleSaveVersion"
+          @restore-version="handleRestoreVersion"
+          @compare-version="setCompareVersion"
+          @export-agent="handleExportAgent"
+        />
+      </div>
     </div>
 
     <div class="modal-overlay" v-if="showCreateDialog" @click.self="showCreateDialog = false">
@@ -939,5 +1161,69 @@ body {
 
 .btn-save-key:hover {
   background: var(--primary-hover);
+}
+
+/* Canvas mode layout */
+.canvas-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.canvas-palette {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.canvas-toolbar {
+  height: 48px;
+  padding: 0 var(--space-6);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.canvas-title {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.canvas-toolbar-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.canvas-inspector {
+  width: 340px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.btn-active {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
 }
 </style>
