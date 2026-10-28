@@ -2,9 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../design_repos/impeccable"
 		}
 	],
 	"settings": {}
