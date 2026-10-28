@@ -7,13 +7,13 @@ import NodeInspector from '@/components/NodeInspector.vue';
 import type { BlockDefinition, BlockKind } from '@/types/agent';
 import axe from 'axe-core';
 
-function makeBlock(id: string, name: string, kind: BlockKind = 'utility'): BlockDefinition {
+function makeBlock(id: string, name: string, kind: BlockKind = 'utility', category: string = 'Test'): BlockDefinition {
   return {
     id,
     version: 1,
     name,
     description: 'A test block',
-    category: 'Test',
+    category,
     kind,
     origin: 'user',
     inputs: [{ id: 'input', name: 'Input', type: 'any', direction: 'input', required: true }],
