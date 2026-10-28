@@ -24,7 +24,7 @@ if errorlevel 1 (
 )
 
 echo [1/3] Building frontend...
-npm run build
+call npm run build
 if errorlevel 1 (
     echo ERROR: Frontend build failed.
     pause
@@ -33,7 +33,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Building Tauri application...
-cargo build --release -p app
+call cargo build --release -p app
 if errorlevel 1 (
     echo ERROR: Tauri build failed.
     pause
