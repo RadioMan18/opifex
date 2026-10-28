@@ -145,15 +145,17 @@ pub fn list_template_sources(state: State<'_, DbState>) -> Result<Vec<TemplateSo
 
 #[tauri::command]
 pub async fn fetch_templates(state: State<'_, DbState>, source_id: String) -> Result<Vec<TemplateEntry>, String> {
-    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
-    let mut stmt = conn.prepare(
-        "SELECT id, name, url, enabled, added_at FROM template_sources WHERE id = ?1",
-    ).map_err(|e| e.to_string())?;
+    // First, get source info from DB (synchronous, lock released before await)
+    let source: Option<TemplateSource> = {
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let mut stmt = conn.prepare(
+            "SELECT id, name, url, enabled, added_at FROM template_sources WHERE id = ?1",
+        ).map_err(|e| e.to_string())?;
 
-    let source: Option<TemplateSource> = stmt
-        .query_row(params![source_id], row_to_template_source)
-        .optional()
-        .map_err(|e| e.to_string())?;
+        stmt.query_row(params![source_id], row_to_template_source)
+            .optional()
+            .map_err(|e| e.to_string())?
+    };
 
     let source = source.ok_or_else(|| format!("Template source not found: {}", source_id))?;
 
@@ -161,18 +163,20 @@ pub async fn fetch_templates(state: State<'_, DbState>, source_id: String) -> Re
         return Err(format!("Template source is disabled: {}", source.name));
     }
 
-    let client = reqwest::blocking::Client::new();
+    // Now make async HTTP request (no DB lock held)
+    let client = reqwest::Client::new();
     let resp = client
         .get(&source.url)
         .timeout(std::time::Duration::from_secs(30))
         .send()
+        .await
         .map_err(|e| format!("Failed to fetch catalog: {}", e))?;
 
     if !resp.status().is_success() {
         return Err(format!("Catalog returned status {}", resp.status()));
     }
 
-    let entries: Vec<CatalogTemplateEntry> = resp.json().map_err(|e| {
+    let entries: Vec<CatalogTemplateEntry> = resp.json().await.map_err(|e| {
         format!("Failed to parse catalog JSON: {}", e)
     })?;
 
@@ -198,45 +202,53 @@ pub async fn install_template(
     state: State<'_, DbState>,
     input: InstallTemplateInput,
 ) -> Result<InstallTemplateResult, String> {
-    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+    // Phase 1: Read from DB synchronously (lock released before await)
+    let source: TemplateSource = {
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
 
-    // Look up the template source
-    let mut stmt = conn.prepare(
-        "SELECT id, name, url, enabled, added_at FROM template_sources WHERE id = ?1",
-    ).map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, url, enabled, added_at FROM template_sources WHERE id = ?1",
+        ).map_err(|e| e.to_string())?;
 
-    let source: Option<TemplateSource> = stmt
-        .query_row(params![input.source_id], row_to_template_source)
-        .optional()
-        .map_err(|e| e.to_string())?;
+        let source: Option<TemplateSource> = stmt
+            .query_row(params![input.source_id], row_to_template_source)
+            .optional()
+            .map_err(|e| e.to_string())?;
 
-    let source = source.ok_or_else(|| format!("Template source not found: {}", input.source_id))?;
+        let source = source.ok_or_else(|| format!("Template source not found: {}", input.source_id))?;
 
-    if !source.enabled {
-        return Err(format!("Template source is disabled: {}", source.name));
+        if !source.enabled {
+            return Err(format!("Template source is disabled: {}", source.name));
+        }
+
+        source
+    };
+
+    // Check if already installed (separate lock scope)
+    {
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let mut stmt = conn.prepare(
+            "SELECT id FROM installed_templates WHERE template_id = ?1 AND version = ?2",
+        ).map_err(|e| e.to_string())?;
+        let existing: Option<String> = stmt
+            .query_row(params![&input.template_id, &input.version], |row| row.get(0))
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if existing.is_some() {
+            return Err(format!("Template {} version {} already installed", input.template_id, input.version));
+        }
     }
 
-    // Check if already installed
-    let mut stmt = conn.prepare(
-        "SELECT id FROM installed_templates WHERE template_id = ?1 AND version = ?2",
-    ).map_err(|e| e.to_string())?;
-    let existing: Option<String> = stmt
-        .query_row(params![&input.template_id, &input.version], |row| row.get(0))
-        .optional()
-        .map_err(|e| e.to_string())?;
-    if existing.is_some() {
-        return Err(format!("Template {} version {} already installed", input.template_id, input.version));
-    }
-
-    // Fetch catalog to find the template entry
-    let client = reqwest::blocking::Client::new();
+    // Phase 2: Fetch catalog via async HTTP (no DB lock held)
+    let client = reqwest::Client::new();
     let resp = client
         .get(&source.url)
         .timeout(std::time::Duration::from_secs(30))
         .send()
+        .await
         .map_err(|e| format!("Failed to fetch catalog: {}", e))?;
 
-    let entries: Vec<CatalogTemplateEntry> = resp.json().map_err(|e| {
+    let entries: Vec<CatalogTemplateEntry> = resp.json().await.map_err(|e| {
         format!("Failed to parse catalog JSON: {}", e)
     })?;
 
@@ -250,7 +262,7 @@ pub async fn install_template(
             )
         })?;
 
-    // Download and verify checksum if download_url is provided
+    // Download and verify checksum if download_url is provided (async)
     let spec_json = if let Some(spec) = entry.spec_json {
         spec
     } else if let Some(download_url) = &entry.download_url {
@@ -258,9 +270,10 @@ pub async fn install_template(
             .get(download_url)
             .timeout(std::time::Duration::from_secs(60))
             .send()
+            .await
             .map_err(|e| format!("Failed to download template: {}", e))?;
 
-        let bytes = resp.bytes().map_err(|e| {
+        let bytes = resp.bytes().await.map_err(|e| {
             format!("Failed to read template download: {}", e)
         })?;
 
@@ -296,7 +309,7 @@ pub async fn install_template(
         return Err("Invalid template: missing required field 'steps'".to_string());
     }
 
-    // Import as agent
+    // Phase 3: Write to DB synchronously (lock acquired and released within this block)
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let model = entry.model.clone().unwrap_or_else(|| "ollama".to_string());
@@ -304,30 +317,33 @@ pub async fn install_template(
 
     let spec_json_str = serde_json::to_string(&spec_json).map_err(|e| e.to_string())?;
 
-    conn.execute(
-        "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![
-            id,
-            entry.name,
-            entry.description,
-            spec_json_str,
-            model,
-            is_starter as i32,
-            now,
-            now
-        ],
-    )
-    .map_err(|e| e.to_string())?;
+    {
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+        conn.execute(
+            "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                id,
+                entry.name,
+                entry.description,
+                spec_json_str,
+                model,
+                is_starter as i32,
+                now,
+                now
+            ],
+        )
+        .map_err(|e| e.to_string())?;
 
-    // Record installed template
-    let template_install_id = Uuid::new_v4().to_string();
-    conn.execute(
-        "INSERT INTO installed_templates (id, template_id, version, installed_at)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![template_install_id, input.template_id, input.version, now],
-    )
-    .map_err(|e| e.to_string())?;
+        // Record installed template
+        let template_install_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO installed_templates (id, template_id, version, installed_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![template_install_id, input.template_id, input.version, now],
+        )
+        .map_err(|e| e.to_string())?;
+    }
 
     Ok(InstallTemplateResult {
         agent_id: id,
