@@ -23,8 +23,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/3] Cleaning previous build...
-cargo clean >nul 2>&1
+echo [1/3] Building frontend...
 npm run build
 if errorlevel 1 (
     echo ERROR: Frontend build failed.
