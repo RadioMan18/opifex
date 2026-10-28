@@ -35,12 +35,16 @@
     "@tauri-apps/plugin-dialog": "^2.8.3",
     "@tauri-apps/plugin-fs": "^2.7.1",
     "@vue-flow/core": "^1.48.2",
+    "pinia": "^4.1.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
+    "@testing-library/vue": "^8.1.0",
     "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/test-utils": "^2.5.1",
     "@vue/tsconfig": "^0.7.0",
+    "axe-core": "^4.14.0",
     "happy-dom": "^21.0.3",
     "png-to-ico": "^3.0.2",
     "png2icons": "^2.0.1",

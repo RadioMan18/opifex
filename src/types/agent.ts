@@ -154,3 +154,132 @@ export interface OllamaChatOutput {
 }
 
 export type LlmProvider = 'ollama' | 'openai' | 'anthropic';
+
+export type PortType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'object'
+  | 'any'
+  | 'message'
+  | 'llm'
+  | 'tool'
+  | 'json';
+
+export type PortDirection = 'input' | 'output';
+
+export type BlockKind =
+  | 'trigger'
+  | 'llm'
+  | 'agent'
+  | 'tool'
+  | 'control'
+  | 'output'
+  | 'utility'
+  | 'subgraph';
+
+export type BlockOrigin = 'user' | 'imported';
+
+export interface BlockPort {
+  id: string;
+  name: string;
+  type: PortType;
+  direction: PortDirection;
+  required: boolean;
+  defaultValue?: unknown;
+  description?: string;
+}
+
+export interface BlockParameter {
+  id: string;
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'select' | 'multi-select' | 'textarea' | 'code' | 'credential';
+  label: string;
+  required: boolean;
+  defaultValue?: unknown;
+  options?: string[];
+  description?: string;
+  sensitive: boolean;
+}
+
+export interface BlockDefinition {
+  id: string;
+  version: number;
+  name: string;
+  description?: string;
+  category: string;
+  kind: BlockKind;
+  origin: BlockOrigin;
+  inputs: BlockPort[];
+  outputs: BlockPort[];
+  parameters: BlockParameter[];
+  specJson: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NodeInstance {
+  id: string;
+  blockId: string;
+  blockVersion: number;
+  position: { x: number; y: number };
+  parameters: Record<string, unknown>;
+  subGraph?: AgentGraph;
+  isCollapsed: boolean;
+}
+
+export interface EdgeInstance {
+  id: string;
+  source: string;
+  sourceHandle: string;
+  target: string;
+  targetHandle: string;
+}
+
+export interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface AgentGraph {
+  id: string;
+  name: string;
+  description?: string;
+  schemaVersion: number;
+  nodes: NodeInstance[];
+  edges: EdgeInstance[];
+  viewport?: Viewport;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type Severity = 'error' | 'warning';
+
+export interface ValidationError {
+  severity: Severity;
+  code: string;
+  message: string;
+  suggestion?: string;
+  nodePath?: string;
+  portId?: string;
+  edgeId?: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationError[];
+  graphHash: string;
+}
+
+export interface PortConformanceVector {
+  sourceType: PortType;
+  targetType: PortType;
+  expectedResult: boolean;
+}
+
+export interface ConformanceCheckResult {
+  allowed: boolean;
+  reason?: string;
+}

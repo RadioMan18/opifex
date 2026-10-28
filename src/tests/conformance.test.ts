@@ -7,10 +7,6 @@ interface PortConformanceVector {
   expected_result: boolean;
 }
 
-function parsePortType(s: string): string {
-  return s;
-}
-
 function canConnect(sourceType: string, targetType: string): boolean {
   if (sourceType === 'any' || targetType === 'any') {
     return true;
