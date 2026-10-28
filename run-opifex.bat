@@ -33,14 +33,12 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Building Tauri application...
-cd /d "%~dp0src-tauri"
-cargo tauri build
+cargo build --release -p app
 if errorlevel 1 (
     echo ERROR: Tauri build failed.
     pause
     exit /b 1
 )
-cd /d "%~dp0"
 
 echo.
 echo [3/3] Launching Opifex...
