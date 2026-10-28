@@ -1,0 +1,17 @@
+[package]
+name = "opifex-cli"
+version = "0.1.0"
+description = "Opifex v2.0.0 headless CLI — validate, run, export, lint-blocks"
+edition = "2021"
+
+[[bin]]
+name = "opifex-cli"
+path = "src/main.rs"
+
+[dependencies]
+opifex-core = { path = "../opifex-core" }
+opifex-engine = { path = "../opifex-engine" }
+opifex-export = { path = "../opifex-export" }
+clap = { version = "4.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"

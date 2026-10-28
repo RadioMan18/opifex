@@ -4,7 +4,7 @@ import { PropType } from 'vue';
 import type { AgentPlan, AgentPlanStep, PlanVersion } from '@/types/agent';
 
 const props = defineProps({
-  plan: { type: Object as PropType<AgentPlan | null>, required: true, default: null },
+  plan: { type: [Object, null] as PropType<AgentPlan | null>, required: true, default: null },
   agentName: { type: String, required: true },
   versions: { type: Array as PropType<any[]>, required: true, default: () => [] },
   compareVersionId: { type: String as PropType<string | null>, required: false, default: null },

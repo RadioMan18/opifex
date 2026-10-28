@@ -1,3 +1,4 @@
+use opifex_core::run_v2_migrations;
 use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Mutex;
@@ -77,5 +78,8 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
         "#,
     )?;
+
+    run_v2_migrations(&conn)?;
+
     Ok(())
 }
