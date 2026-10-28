@@ -43,7 +43,7 @@ if errorlevel 1 (
 
 echo.
 echo [3/3] Launching Opifex...
-set "APP_DIR=%~dp0src-tauri\target\release"
+set "APP_DIR=%~dp0target\release"
 set "APP_EXE=%APP_DIR%\app.exe"
 if not exist "%APP_EXE%" (
     echo ERROR: Built application not found at:
