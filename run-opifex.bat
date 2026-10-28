@@ -34,7 +34,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Building Tauri application...
-cargo tauri build
+cargo tauri build --manifest-path src-tauri/Cargo.toml
 if errorlevel 1 (
     echo ERROR: Tauri build failed.
     pause
