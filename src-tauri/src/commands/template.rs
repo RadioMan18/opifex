@@ -110,7 +110,7 @@ pub fn add_template_source(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     conn.execute(
         "INSERT INTO template_sources (id, name, url, enabled, added_at)
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -129,7 +129,7 @@ pub fn add_template_source(
 
 #[tauri::command]
 pub fn list_template_sources(state: State<'_, DbState>) -> Result<Vec<TemplateSource>, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let mut stmt = conn.prepare(
         "SELECT id, name, url, enabled, added_at FROM template_sources ORDER BY added_at DESC",
     ).map_err(|e| e.to_string())?;
@@ -145,7 +145,7 @@ pub fn list_template_sources(state: State<'_, DbState>) -> Result<Vec<TemplateSo
 
 #[tauri::command]
 pub async fn fetch_templates(state: State<'_, DbState>, source_id: String) -> Result<Vec<TemplateEntry>, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let mut stmt = conn.prepare(
         "SELECT id, name, url, enabled, added_at FROM template_sources WHERE id = ?1",
     ).map_err(|e| e.to_string())?;
@@ -198,7 +198,7 @@ pub async fn install_template(
     state: State<'_, DbState>,
     input: InstallTemplateInput,
 ) -> Result<InstallTemplateResult, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
 
     // Look up the template source
     let mut stmt = conn.prepare(
@@ -339,7 +339,7 @@ pub async fn install_template(
 
 #[tauri::command]
 pub fn list_installed_templates(state: State<'_, DbState>) -> Result<Vec<InstalledTemplate>, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let mut stmt = conn.prepare(
         "SELECT id, template_id, version, installed_at FROM installed_templates ORDER BY installed_at DESC",
     ).map_err(|e| e.to_string())?;

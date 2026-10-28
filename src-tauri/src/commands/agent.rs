@@ -124,7 +124,7 @@ pub fn create_agent(state: State<'_, DbState>, input: CreateAgentInput) -> Resul
     let is_starter = input.is_starter.unwrap_or(false);
     let spec_json = serde_json::to_string(&input.spec_json).map_err(|e| e.to_string())?;
 
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     conn.execute(
         "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -155,7 +155,7 @@ pub fn create_agent(state: State<'_, DbState>, input: CreateAgentInput) -> Resul
 
 #[tauri::command]
 pub fn get_agent(state: State<'_, DbState>, id: String) -> Result<Option<Agent>, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let mut stmt = conn.prepare(
         "SELECT id, name, description, spec_json, model, is_starter, created_at, updated_at
          FROM agents WHERE id = ?1",
@@ -211,7 +211,7 @@ pub fn update_agent(
     let id_for_lookup = id.clone();
 
     {
-        let conn = &*state.conn.lock().unwrap();
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
 
         let mut stmt = conn.prepare(
             "SELECT name, description, spec_json, model, is_starter FROM agents WHERE id = ?1",
@@ -252,7 +252,7 @@ pub fn update_agent(
 
 #[tauri::command]
 pub fn delete_agent(state: State<'_, DbState>, id: String) -> Result<bool, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let changes = conn.execute("DELETE FROM agents WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
     Ok(changes > 0)
 }
@@ -289,7 +289,7 @@ pub fn import_agent(state: State<'_, DbState>, agent_json: String) -> Result<Age
 
     let spec_json = serde_json::to_string(&agent.spec_json).map_err(|e| e.to_string())?;
 
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     conn.execute(
         "INSERT INTO agents (id, name, description, spec_json, model, is_starter, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -311,7 +311,7 @@ pub fn import_agent(state: State<'_, DbState>, agent_json: String) -> Result<Age
 
 #[tauri::command]
 pub fn seed_starter_agents(state: State<'_, DbState>) -> Result<Vec<String>, String> {
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
 
     let mut stmt = conn.prepare("SELECT id FROM agents WHERE is_starter = 1").map_err(|e| e.to_string())?;
     let existing: Vec<String> = stmt
@@ -382,7 +382,7 @@ pub fn load_user_agents(state: State<'_, DbState>) -> Result<Vec<String>, String
         return Ok(Vec::new());
     }
 
-    let conn = &*state.conn.lock().unwrap();
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
     let now = chrono::Utc::now().to_rfc3339();
     let mut created = Vec::new();
 
