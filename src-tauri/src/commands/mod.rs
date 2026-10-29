@@ -1,5 +1,6 @@
 mod agent;
 mod conversation;
+mod connector;
 mod files;
 mod ollama;
 mod plan;
@@ -12,6 +13,11 @@ pub use agent::{
 #[allow(dead_code)]
 pub use conversation::{
     create_conversation, get_conversation, list_conversations, load_messages, save_message,
+};
+#[allow(dead_code)]
+pub use connector::{
+    check_tool_approval, create_connector, delete_connector, get_connector, grant_connector,
+    list_connector_grants, list_connectors, revoke_connector, update_connector,
 };
 #[allow(dead_code)]
 pub use ollama::{
@@ -37,3 +43,5 @@ pub use conversation::{Conversation, Message as DbMessage, SaveMessageInput};
 pub use ollama::{OllamaChatInput, OllamaChatOutput, OllamaMessage, OllamaModel, LlmProvider};
 #[allow(dead_code)]
 pub use plan::{PlanVersion, SavePlanVersionInput, RestorePlanVersionInput};
+#[allow(dead_code)]
+pub use connector::{ConnectorBlockDto, ConnectorGrantDto, CreateConnectorInput, UpdateConnectorInput, GrantConnectorInput, ListConnectorsInput, ListGrantsInput};

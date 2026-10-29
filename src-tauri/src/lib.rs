@@ -10,6 +10,8 @@ use crate::commands::{
     write_file, read_file,
     add_template_source, list_template_sources, fetch_templates, install_template,
     list_installed_templates,
+    create_connector, get_connector, list_connectors, update_connector, delete_connector,
+    grant_connector, revoke_connector, list_connector_grants, check_tool_approval,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -82,6 +84,15 @@ pub fn run() {
       fetch_templates,
       install_template,
       list_installed_templates,
+      create_connector,
+      get_connector,
+      list_connectors,
+      update_connector,
+      delete_connector,
+      grant_connector,
+      revoke_connector,
+      list_connector_grants,
+      check_tool_approval,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

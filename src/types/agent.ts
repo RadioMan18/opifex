@@ -216,6 +216,9 @@ export interface BlockDefinition {
   specJson: unknown;
   createdAt: string;
   updatedAt: string;
+  // Connector-specific fields (populated when kind === 'tool' and block is a connector)
+  account_selection?: AccountSelection;
+  tool_management?: ToolManagementConfig;
 }
 
 export interface NodeInstance {
@@ -280,4 +283,41 @@ export interface PortConformanceVector {
 export interface ConformanceCheckResult {
   allowed: boolean;
   reason?: string;
+}
+
+// Connector account selection (Gumloop model)
+export type AccountSelection = 'personal-default' | 'specific-account' | 'team-default';
+
+// Tool Management approval presets
+export type ToolApprovalMode = 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+
+// Per-tool override when preset is 'custom'
+export interface ToolOverride {
+  tool_id: string;
+  mode: 'allow' | 'ask' | 'deny';
+}
+
+export interface ToolManagementConfig {
+  connector_id: string;
+  preset: ToolApprovalMode;
+  overrides: ToolOverride[];
+}
+
+export interface ConnectorBlock {
+  id: string;
+  name: string;
+  category: string;
+  account_selection: AccountSelection;
+  tool_management: ToolManagementConfig;
+  is_builtin: boolean;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectorGrant {
+  agent_id: string;
+  connector_id: string;
+  account_id: string | null;
+  granted_at: string;
 }

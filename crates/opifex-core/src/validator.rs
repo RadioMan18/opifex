@@ -684,11 +684,298 @@ mod tests {
         assert!(result.errors.iter().any(|e| e.code == "TYPE_MISMATCH"));
     }
 
-    #[test]
-    fn test_can_connect_any() {
-        assert!(can_connect(&PortType::Any, &PortType::String));
-        assert!(can_connect(&PortType::String, &PortType::Any));
-        assert!(can_connect(&PortType::String, &PortType::String));
-        assert!(!can_connect(&PortType::String, &PortType::Number));
+#[test]
+fn test_can_connect_any() {
+    assert!(can_connect(&PortType::Any, &PortType::String));
+    assert!(can_connect(&PortType::String, &PortType::Any));
+    assert!(can_connect(&PortType::String, &PortType::String));
+    assert!(!can_connect(&PortType::String, &PortType::Number));
+}
+
+// ============================================================================
+// Connector / Tool Management tests
+// ============================================================================
+
+#[test]
+fn test_tool_management_always_allow() {
+    let config = ToolManagementConfig {
+        connector_id: "conn-1".to_string(),
+        preset: ToolApprovalMode::AlwaysAllow,
+        overrides: vec![],
+    };
+
+    assert_eq!(config.check_tool("read_data"), (true, false));
+    assert_eq!(config.check_tool("delete_record"), (true, false));
+    assert_eq!(config.check_tool("create_record"), (true, false));
+}
+
+#[test]
+fn test_tool_management_ask_each_time() {
+    let config = ToolManagementConfig {
+        connector_id: "conn-1".to_string(),
+        preset: ToolApprovalMode::AskEachTime,
+        overrides: vec![],
+    };
+
+    assert_eq!(config.check_tool("read_data"), (false, true));
+    assert_eq!(config.check_tool("delete_record"), (false, true));
+    assert_eq!(config.check_tool("create_record"), (false, true));
+}
+
+#[test]
+fn test_tool_management_ask_for_writes_deletes() {
+    let config = ToolManagementConfig {
+        connector_id: "conn-1".to_string(),
+        preset: ToolApprovalMode::AskForWritesDeletes,
+        overrides: vec![],
+    };
+
+    // Read-only tools are allowed without approval
+    assert_eq!(config.check_tool("read_data"), (true, false));
+    assert_eq!(config.check_tool("get_records"), (true, false));
+    assert_eq!(config.check_tool("list_items"), (true, false));
+
+    // Write/delete tools require approval
+    assert_eq!(config.check_tool("delete_record"), (false, true));
+    assert_eq!(config.check_tool("create_record"), (false, true));
+    assert_eq!(config.check_tool("update_record"), (false, true));
+    assert_eq!(config.check_tool("post_data"), (false, true));
+    assert_eq!(config.check_tool("put_item"), (false, true));
+    assert_eq!(config.check_tool("patch_record"), (false, true));
+    assert_eq!(config.check_tool("modify_data"), (false, true));
+}
+
+#[test]
+fn test_tool_management_custom_overrides() {
+    let config = ToolManagementConfig {
+        connector_id: "conn-1".to_string(),
+        preset: ToolApprovalMode::Custom,
+        overrides: vec![
+            ToolOverride {
+                tool_id: "read_data".to_string(),
+                mode: ToolOverrideMode::Allow,
+            },
+            ToolOverride {
+                tool_id: "delete_record".to_string(),
+                mode: ToolOverrideMode::Deny,
+            },
+            ToolOverride {
+                tool_id: "create_record".to_string(),
+                mode: ToolOverrideMode::Ask,
+            },
+        ],
+    };
+
+    // Overridden tools follow their override
+    assert_eq!(config.check_tool("read_data"), (true, false));
+    assert_eq!(config.check_tool("delete_record"), (false, false));
+    assert_eq!(config.check_tool("create_record"), (false, true));
+
+    // Non-overridden tools default to ask under Custom preset
+    assert_eq!(config.check_tool("list_items"), (false, true));
+}
+
+#[test]
+fn test_tools_requiring_approval() {
+    let config = ToolManagementConfig {
+        connector_id: "conn-1".to_string(),
+        preset: ToolApprovalMode::AskForWritesDeletes,
+        overrides: vec![],
+    };
+
+    let all_tools = vec![
+        "read_data".to_string(),
+        "get_records".to_string(),
+        "delete_record".to_string(),
+        "create_record".to_string(),
+        "list_items".to_string(),
+    ];
+
+    let requiring = config.tools_requiring_approval(&all_tools);
+    assert_eq!(requiring.len(), 2);
+    assert!(requiring.contains(&"delete_record".to_string()));
+    assert!(requiring.contains(&"create_record".to_string()));
+}
+
+#[test]
+fn test_connector_block_creation() {
+    let config = ToolManagementConfig {
+        connector_id: "gmail-1".to_string(),
+        preset: ToolApprovalMode::AskForWritesDeletes,
+        overrides: vec![],
+    };
+
+    let connector = ConnectorBlock {
+        id: "conn-gmail".to_string(),
+        name: "Gmail".to_string(),
+        category: "email".to_string(),
+        account_selection: AccountSelection::PersonalDefault,
+        tool_management: config,
+        is_builtin: true,
+        is_custom: false,
+        created_at: "2026-10-29T00:00:00Z".to_string(),
+        updated_at: "2026-10-29T00:00:00Z".to_string(),
+    };
+
+    assert_eq!(connector.name, "Gmail");
+    assert_eq!(connector.category, "email");
+    assert!(connector.is_builtin);
+    assert!(!connector.is_custom);
+    assert!(matches!(
+        connector.account_selection,
+        AccountSelection::PersonalDefault
+    ));
+}
+
+#[test]
+fn test_connector_grant() {
+    let grant = ConnectorGrant {
+        agent_id: "agent-1".to_string(),
+        connector_id: "conn-gmail".to_string(),
+        account_id: Some("user@gmail.com".to_string()),
+        granted_at: "2026-10-29T00:00:00Z".to_string(),
+    };
+
+    assert_eq!(grant.agent_id, "agent-1");
+    assert_eq!(grant.connector_id, "conn-gmail");
+    assert_eq!(grant.account_id, Some("user@gmail.com".to_string()));
+}
+}
+
+// ============================================================================
+// Connector types (Gumloop model)
+// ============================================================================
+
+/// Account selection for connector blocks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccountSelection {
+    PersonalDefault,
+    SpecificAccount(String),
+    TeamDefault,
+}
+
+/// Tool Management approval preset modes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolApprovalMode {
+    AlwaysAllow,
+    AskEachTime,
+    AskForWritesDeletes,
+    Custom,
+}
+
+/// Per-tool override when preset is Custom.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolOverride {
+    pub tool_id: String,
+    pub mode: ToolOverrideMode,
+}
+
+/// Override mode for a specific tool (simpler than preset modes).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToolOverrideMode {
+    Allow,
+    Ask,
+    Deny,
+}
+
+/// Tool Management configuration for a connector block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolManagementConfig {
+    pub connector_id: String,
+    pub preset: ToolApprovalMode,
+    pub overrides: Vec<ToolOverride>,
+}
+
+/// A connector block definition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectorBlock {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub account_selection: AccountSelection,
+    pub tool_management: ToolManagementConfig,
+    pub is_builtin: bool,
+    pub is_custom: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// A connector grant (which account an agent uses for a connector).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectorGrant {
+    pub agent_id: String,
+    pub connector_id: String,
+    pub account_id: Option<String>,
+    pub granted_at: String,
+}
+
+impl ToolManagementConfig {
+    /// Check if a specific tool is allowed to run without approval.
+    /// Returns (allowed, requires_approval).
+    pub fn check_tool(&self, tool_id: &str) -> (bool, bool) {
+        // Check overrides first
+        if let Some(ov) = self.overrides.iter().find(|o| o.tool_id == tool_id) {
+            match ov.mode {
+                ToolOverrideMode::Allow => return (true, false),
+                ToolOverrideMode::Ask => return (false, true),
+                ToolOverrideMode::Deny => return (false, false),
+            }
+        }
+
+        // Fall back to preset
+        match self.preset {
+            ToolApprovalMode::AlwaysAllow => (true, false),
+            ToolApprovalMode::AskEachTime => (false, true),
+            ToolApprovalMode::AskForWritesDeletes => {
+                let is_write = self.is_write_tool(tool_id);
+                if is_write {
+                    (false, true)
+                } else {
+                    (true, false)
+                }
+            }
+            ToolApprovalMode::Custom => {
+                // Custom with no matching override defaults to ask
+                (false, true)
+            }
+        }
+    }
+
+    /// Heuristic: determine if a tool is a write/delete operation based on name.
+    fn is_write_tool(&self, tool_id: &str) -> bool {
+        let lower = tool_id.to_lowercase();
+        lower.contains("delete")
+            || lower.contains("remove")
+            || lower.contains("create")
+            || lower.contains("update")
+            || lower.contains("write")
+            || lower.contains("post")
+            || lower.contains("put")
+            || lower.contains("patch")
+            || lower.contains("modify")
+    }
+
+    /// Get all tool IDs that require approval.
+    pub fn tools_requiring_approval(&self, all_tool_ids: &[String]) -> Vec<String> {
+        all_tool_ids
+            .iter()
+            .filter(|tid| {
+                let (allowed, requires_approval) = self.check_tool(tid);
+                requires_approval && !allowed
+            })
+            .cloned()
+            .collect()
     }
 }
+
+impl Default for ToolManagementConfig {
+    fn default() -> Self {
+        Self {
+            connector_id: String::new(),
+            preset: ToolApprovalMode::AskForWritesDeletes,
+            overrides: Vec::new(),
+        }
+    }
+}
+
+// End of file

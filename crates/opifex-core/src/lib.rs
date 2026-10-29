@@ -7,8 +7,9 @@ pub mod validator;
 pub use expression::{parse_expression, Expr, Literal, BinaryOp, ParseError};
 pub use migrations::run_v2_migrations;
 pub use validator::{
-    AgentGraph, BlockDefinition, BlockKind, BlockOrigin, BlockParameter, BlockPort,
-    EdgeInstance, GraphValidator, NodeInstance, ParameterType, PortConformanceVector,
-    PortDirection, PortType, Position, Severity, ValidationError, ValidationResult, Viewport,
-    can_connect,
+    AccountSelection, AgentGraph, BlockDefinition, BlockKind, BlockOrigin, BlockParameter, BlockPort,
+    ConnectorBlock, ConnectorGrant, EdgeInstance, GraphValidator, NodeInstance, ParameterType,
+    PortConformanceVector, PortDirection, PortType, Position, Severity, ToolApprovalMode,
+    ToolManagementConfig, ToolOverride, ToolOverrideMode, ValidationError, ValidationResult,
+    Viewport, can_connect,
 };

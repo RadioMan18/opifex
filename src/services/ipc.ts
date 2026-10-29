@@ -20,6 +20,61 @@ import type {
   UpdateAgentInput,
 } from '@/types/agent';
 
+// Connector IPC types (snake_case to match Rust backend)
+interface CreateConnectorInput {
+  name: string;
+  category: string;
+  account_selection: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+}
+
+interface UpdateConnectorInput {
+  id: string;
+  name?: string;
+  category?: string;
+  account_selection?: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management?: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+}
+
+interface GrantConnectorInput {
+  agent_id: string;
+  connector_id: string;
+  account_id?: string;
+}
+
+
+
+interface ConnectorBlock {
+  id: string;
+  name: string;
+  category: string;
+  account_selection: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+  is_builtin: boolean;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ConnectorGrant {
+  agent_id: string;
+  connector_id: string;
+  account_id: string | null;
+  granted_at: string;
+}
+
 export async function createAgent(input: CreateAgentInput): Promise<Agent> {
   return invoke('create_agent', { input });
 }
@@ -238,4 +293,50 @@ export async function installTemplate(input: { templateId: string; version: stri
 
 export async function listInstalledTemplates(): Promise<InstalledTemplate[]> {
   return invoke('list_installed_templates');
+}
+
+// Connector IPC
+export async function createConnector(input: CreateConnectorInput): Promise<ConnectorBlock> {
+  return invoke('create_connector', { input });
+}
+
+export async function getConnector(id: string): Promise<ConnectorBlock | null> {
+  return invoke('get_connector', { id });
+}
+
+export async function listConnectors(category?: string): Promise<ConnectorBlock[]> {
+  return invoke('list_connectors', { category });
+}
+
+export async function updateConnector(input: UpdateConnectorInput): Promise<ConnectorBlock> {
+  return invoke('update_connector', { input });
+}
+
+export async function deleteConnector(id: string): Promise<boolean> {
+  return invoke('delete_connector', { id });
+}
+
+export async function grantConnector(input: GrantConnectorInput): Promise<ConnectorGrant> {
+  return invoke('grant_connector', { input });
+}
+
+export async function revokeConnector(agentId: string, connectorId: string): Promise<boolean> {
+  return invoke('revoke_connector', { agent_id: agentId, connector_id: connectorId });
+}
+
+export async function listConnectorGrants(agentId: string): Promise<ConnectorGrant[]> {
+  return invoke('list_connector_grants', { agent_id: agentId });
+}
+
+export async function checkToolApproval(
+  toolId: string,
+  connectorId: string,
+  preset: string,
+  overrides?: { toolId: string; mode: 'allow' | 'ask' | 'deny' }[],
+): Promise<{ allowed: boolean; requiresApproval: boolean }> {
+  const result = await invoke<{ allowed: boolean; requires_approval: boolean }>(
+    'check_tool_approval',
+    { tool_id: toolId, connector_id: connectorId, preset, overrides },
+  );
+  return { allowed: result.allowed, requiresApproval: result.requires_approval };
 }

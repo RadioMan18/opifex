@@ -212,6 +212,7 @@ import type { BlockDefinition } from '@/types/agent';
 import { useGraphStore } from '@/stores/graphStore';
 import { CanvasAdapter } from '@/services/canvasAdapter';
 import AgentNode from '@/components/canvas/AgentNode.vue';
+import ConnectorNode from '@/components/canvas/ConnectorNode.vue';
 import StepEdge from '@/components/canvas/StepEdge.vue';
 
 const store = useGraphStore();
@@ -229,10 +230,11 @@ const flowNodes = computed(() => {
     const block = blocks.value.find((b) => b.id === node.blockId);
     const errors = store.getNodeErrors(node.id);
     const hasError = errors.some((e) => e.severity === 'error');
+    const isConnector = block?.account_selection || block?.tool_management;
 
     return {
       id: node.id,
-      type: 'agentNode',
+      type: isConnector ? 'connectorNode' : 'agentNode',
       position: node.position,
       data: {
         label: block?.name ?? node.blockId,
@@ -271,6 +273,12 @@ const { fitView: fitViewFn, zoomIn: zoomInFn, zoomOut: zoomOutFn } = useVueFlow(
 
 onMounted(() => {
   canvasContainer.value?.focus();
+  window.addEventListener('open-tool-manager', (e: Event) => {
+    const customEvent = e as CustomEvent<{ nodeId: string; block: any }>;
+    const { nodeId, block } = customEvent.detail;
+    console.log('Open tool manager for node:', nodeId, block);
+    // The tool manager panel will be shown by the parent app
+  });
 });
 
 function onNodeDrag(event: NodeDragEvent) {
@@ -371,7 +379,7 @@ function blockColor(kind: string): string {
   return colors[kind] ?? '#6B7280';
 }
 
-const nodeTypes = { agentNode: AgentNode as any };
+const nodeTypes = { agentNode: AgentNode as any, connectorNode: ConnectorNode as any };
 const edgeTypes = { step: StepEdge as any };
 
 function autoFormat() {
