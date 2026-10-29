@@ -29,14 +29,18 @@ pub use run::{
     create_subagent, list_subagents,
     list_abilities, toggle_ability,
     create_channel, list_channels,
-};
-#[allow(dead_code)]
-pub use run::{
     PinDataInput, PinnedDataDto, RunAgentGraphInput, RunStatusDto, UnpinDataInput,
     SubagentDto, AbilityDto, ChannelDto,
     CreateSubagentInput, ListSubagentsInput,
     ListAbilitiesInput,
     CreateChannelInput, ListChannelsInput,
+    CreateInstructionChangeInput, InstructionChangeDto, ListInstructionChangesInput,
+    CreateEvaluationInput, EvaluationDto, ListEvaluationsInput,
+    CreateReflectionInput, ReflectionDto, ListReflectionsInput,
+    CreateArtifactInput, ArtifactDto, ListArtifactsInput,
+    SetMessagingModeInput, MessagingModeDto, GetMessagingModeInput,
+    CreateSetupStepInput, SetupStepDto, ListSetupStepsInput,
+    ApplyOppyEditInput, ApplyOppyEditOutput,
 };
 #[allow(dead_code)]
 pub use ollama::{

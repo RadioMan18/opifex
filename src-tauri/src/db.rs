@@ -98,6 +98,138 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (agent_id) REFERENCES agents(id)
         );
+
+        CREATE TABLE IF NOT EXISTS instruction_changes (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            change_type TEXT NOT NULL,
+            rationale TEXT NOT NULL,
+            approval_required INTEGER NOT NULL DEFAULT 1,
+            applies_from TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS evaluations (
+            id TEXT PRIMARY KEY,
+            graph_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            evaluator TEXT NOT NULL,
+            score REAL NOT NULL,
+            criteria TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (graph_id) REFERENCES agents(id),
+            FOREIGN KEY (run_id) REFERENCES agent_graphs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS reflections (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            lessons_learned TEXT NOT NULL,
+            improvements TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (run_id) REFERENCES runs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            node_id TEXT,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            storage_path TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (run_id) REFERENCES agent_graphs(id),
+            FOREIGN KEY (node_id) REFERENCES agent_graphs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_settings (
+            agent_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (agent_id, key),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS setup_steps (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            required INTEGER NOT NULL DEFAULT 0,
+            order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS runs (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            graph_id TEXT NOT NULL,
+            graph_hash TEXT NOT NULL,
+            mode TEXT NOT NULL DEFAULT 'mock',
+            scope_json TEXT NOT NULL,
+            trigger_json TEXT,
+            status TEXT NOT NULL DEFAULT 'running',
+            error_json TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            ended_at TEXT,
+            FOREIGN KEY (agent_id) REFERENCES agents(id),
+            FOREIGN KEY (graph_id) REFERENCES agent_graphs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS node_runs (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            parent_node_run_id TEXT,
+            node_path TEXT NOT NULL,
+            attempt INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'queued',
+            input_json TEXT,
+            output_json TEXT,
+            error_json TEXT,
+            truncated INTEGER NOT NULL DEFAULT 0,
+            tokens_in INTEGER,
+            tokens_out INTEGER,
+            started_at TEXT,
+            ended_at TEXT,
+            FOREIGN KEY (run_id) REFERENCES runs(id),
+            FOREIGN KEY (parent_node_run_id) REFERENCES node_runs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS reflections (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            lessons_learned TEXT NOT NULL,
+            improvements TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (run_id) REFERENCES runs(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            node_id TEXT,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            storage_path TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (run_id) REFERENCES runs(id),
+            FOREIGN KEY (node_id) REFERENCES agent_graphs(id)
+        );
         "#,
     )?;
 

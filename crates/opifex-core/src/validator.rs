@@ -1076,4 +1076,115 @@ pub enum ChannelKind {
     MCP,
 }
 
+/// Self-improving instruction change — requires approval before applying.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstructionChange {
+    pub id: String,
+    pub change_type: String,        // e.g. "always check Salesforce first"
+    pub rationale: String,
+    pub approval_required: bool,    // always true
+    pub applies_from: String,       // "next_message" (not partway through current turn)
+    pub status: InstructionChangeStatus,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Status of an instruction change approval.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum InstructionChangeStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+/// Performance evaluation result — measures agent quality.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Evaluation {
+    pub id: String,
+    pub graph_id: String,
+    pub run_id: String,
+    pub evaluator: String,          // "human" | "ai" | "auto"
+    pub score: f64,                 // 0.0 to 1.0
+    pub criteria: String,           // what was evaluated
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+/// Reflection — agent's self-review of a completed run.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Reflection {
+    pub id: String,
+    pub run_id: String,
+    pub summary: String,            // agent's self-assessment
+    pub lessons_learned: Vec<String>,
+    pub improvements: Vec<String>,  // suggested improvements for next run
+    pub created_at: String,
+}
+
+/// Artifact — file or output produced by an agent during execution.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Artifact {
+    pub id: String,
+    pub run_id: String,
+    pub node_id: String,
+    pub name: String,
+    pub kind: String,               // "file", "chart", "text", "json"
+    pub mime_type: String,
+    pub size_bytes: u64,
+    pub storage_path: String,
+    pub created_at: String,
+}
+
+/// Messaging mode — how the agent communicates with users.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MessagingMode {
+    Classic,      // direct, single-turn responses
+    Conversational, // multi-turn, context-aware conversation
+}
+
+/// Guided setup step — walks new users through initial configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SetupStep {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub kind: SetupStepKind,
+    pub completed: bool,
+    pub required: bool,
+    pub order: u32,
+}
+
+/// Kind of setup step.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SetupStepKind {
+    AccountSetup,
+    ModelSelection,
+    BlockSelection,
+    ToolConnection,
+    TestRun,
+}
+
+/// Oppy structured edit operation — atomic graph mutations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum OppyEditOp {
+    AddNode {
+        block_id: String,
+        version: u32,
+        position: Position,
+    },
+    RemoveNode {
+        node_id: String,
+    },
+    Connect {
+        source_node: String,
+        target_node: String,
+    },
+    SetParam {
+        node_id: String,
+        param_id: String,
+        value: serde_json::Value,
+    },
+}
+
 // End of file
