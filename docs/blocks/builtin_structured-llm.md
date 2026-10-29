@@ -7,7 +7,7 @@
 
 ## Description
 
-Sends a message to the LLM with a JSON schema constraint and returns a typed `result` object.
+Sends a message to the LLM with a JSON schema constraint and returns a typed `result` object. Display name: **Schema Weaver**.
 
 ## Inputs
 

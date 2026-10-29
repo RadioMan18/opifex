@@ -7,7 +7,7 @@
 
 ## Description
 
-Generic HTTP request block. Can be used as a standalone tool or attached to an Agent node.
+Generic HTTP request block. Can be used as a standalone tool or attached to an Agent node. Display name: **Web Courier**.
 
 ## Inputs
 

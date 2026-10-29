@@ -7,7 +7,7 @@
 
 ## Description
 
-Entry point for an agent graph. Every graph requires exactly one Input block. Emits a `message` (string) or `payload` (json) output to start execution.
+Entry point for an agent graph. Every graph requires exactly one **Entry Point** block. Emits a `message` (string) or `payload` (json) output to start execution.
 
 ## Inputs
 

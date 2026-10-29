@@ -7,7 +7,7 @@
 
 ## Description
 
-Autonomous agent node that can invoke attached tools. Supports hybrid tool wiring — tools can be connected via canvas edges OR attached through the inline inspector drawer.
+Autonomous agent node that can invoke attached tools. Supports hybrid tool wiring — tools can be connected via canvas edges OR attached through the inline inspector drawer. Display name: **Task Orchestrator**.
 
 ## Inputs
 

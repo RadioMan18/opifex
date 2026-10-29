@@ -7,7 +7,7 @@
 
 ## Description
 
-Sends a message to the selected LLM provider and returns the completion as a string.
+Sends a message to the selected LLM provider and returns the completion as a string. Display name: **Prompt Weaver**.
 
 ## Inputs
 

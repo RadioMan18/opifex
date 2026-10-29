@@ -7,7 +7,7 @@
 
 ## Description
 
-Sandboxed JavaScript execution block. Runs in a QuickJS sidecar under a Windows Job Object (128 MB RAM, 5s CPU cap, no file system or network access by default).
+Sandboxed JavaScript execution block. Runs in a QuickJS sidecar under a Windows Job Object (128 MB RAM, 5s CPU cap, no file system or network access by default). Display name: **Script Vault**.
 
 ## Inputs
 

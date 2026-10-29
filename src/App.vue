@@ -61,7 +61,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:input',
     version: 1,
-    name: 'Input',
+    name: 'Entry Point',
     description: 'Entry point trigger — every graph requires exactly one.',
     category: 'Triggers',
     kind: 'trigger',
@@ -79,7 +79,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:llm-prompt',
     version: 1,
-    name: 'Prompt LLM',
+    name: 'Prompt Weaver',
     description: 'Send a message to the LLM provider and return completion.',
     category: 'LLM',
     kind: 'llm',
@@ -100,7 +100,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:agent',
     version: 1,
-    name: 'Agent',
+    name: 'Task Orchestrator',
     description: 'Autonomous agent that can invoke attached tools.',
     category: 'Agents',
     kind: 'agent',
@@ -123,7 +123,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:http-request',
     version: 1,
-    name: 'HTTP Request',
+    name: 'Web Courier',
     description: 'Generic HTTP request tool for agents.',
     category: 'Tools',
     kind: 'tool',
@@ -147,7 +147,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:condition',
     version: 1,
-    name: 'Condition',
+    name: 'Logic Gate',
     description: 'Branch execution based on a boolean condition.',
     category: 'Control Flow',
     kind: 'control',
@@ -167,7 +167,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:merge',
     version: 1,
-    name: 'Merge',
+    name: 'Stream Merger',
     description: 'Merge multiple inputs into a single output.',
     category: 'Control Flow',
     kind: 'control',
@@ -182,7 +182,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:code-js',
     version: 1,
-    name: 'Code (JS)',
+    name: 'Script Vault',
     description: 'Sandboxed JavaScript execution (Developer mode).',
     category: 'Utilities',
     kind: 'utility',
@@ -202,7 +202,7 @@ const defaultBlocks = ref<BlockDefinition[]>([
   {
     id: 'builtin:final-answer',
     version: 1,
-    name: 'Final Answer',
+    name: 'Result Terminal',
     description: 'Terminal output block — returns result to user.',
     category: 'Outputs',
     kind: 'output',
@@ -237,23 +237,23 @@ function applyDarkMode() {
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 
   if (isDark) {
-    root.style.setProperty('--surface-base', '#111827');
-    root.style.setProperty('--surface-card', '#1F2937');
-    root.style.setProperty('--surface-hover', '#374151');
-    root.style.setProperty('--surface-muted', '#111827');
-    root.style.setProperty('--text-primary', '#F9FAFB');
-    root.style.setProperty('--text-secondary', '#9CA3AF');
+    root.style.setProperty('--surface-base', '#0F172A');
+    root.style.setProperty('--surface-card', '#1E293B');
+    root.style.setProperty('--surface-hover', '#334155');
+    root.style.setProperty('--surface-muted', '#0F172A');
+    root.style.setProperty('--text-primary', '#F8FAFC');
+    root.style.setProperty('--text-secondary', '#CBD5E1');
     root.style.setProperty('--text-muted', '#D1D5DB');
-    root.style.setProperty('--border', '#D1D5DB');
-    root.style.setProperty('--border-focus', '#3B82F6');
-    root.style.setProperty('--border-hover', '#9CA3AF');
-    root.style.setProperty('--primary', '#3B82F6');
-    root.style.setProperty('--primary-hover', '#2563EB');
+    root.style.setProperty('--border', '#475569');
+    root.style.setProperty('--border-focus', '#0EA5E9');
+    root.style.setProperty('--border-hover', '#64748B');
+    root.style.setProperty('--primary', '#0EA5E9');
+    root.style.setProperty('--primary-hover', '#0284C7');
     root.style.setProperty('--primary-fg', '#FFFFFF');
-    root.style.setProperty('--primary-bg', 'rgba(59, 130, 246, 0.15)');
-    root.style.setProperty('--success', '#22C55E');
+    root.style.setProperty('--primary-bg', 'rgba(14, 165, 233, 0.15)');
+    root.style.setProperty('--success', '#10B981');
     root.style.setProperty('--success-fg', '#FFFFFF');
-    root.style.setProperty('--success-bg', 'rgba(34, 197, 94, 0.15)');
+    root.style.setProperty('--success-bg', 'rgba(16, 185, 129, 0.15)');
     root.style.setProperty('--danger', '#EF4444');
     root.style.setProperty('--danger-fg', '#FFFFFF');
     root.style.setProperty('--danger-bg', 'rgba(239, 68, 68, 0.15)');
@@ -744,38 +744,38 @@ async function setupKeyboardShortcuts() {
 /* Opifex design tokens — Operate mode, desktop, Relevance AI inspired */
 :root {
   /* Surfaces */
-  --surface-base: #FAFAF9;
+  --surface-base: #F8FAFC;
   --surface-card: #FFFFFF;
-  --surface-hover: #F3F4F6;
+  --surface-hover: #F1F5F9;
   --surface-muted: #F9FAFB;
 
   /* Text */
-  --text-primary: #111827;
-  --text-secondary: #6B7280;
-  --text-muted: #9CA3AF;
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
 
   /* Border */
-  --border: #000000;
-  --border-focus: #2563EB;
-  --border-hover: #374151;
+  --border: #E2E8F0;
+  --border-focus: #0EA5E9;
+  --border-hover: #CBD5E1;
 
   /* Interactive */
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
+  --primary: #0EA5E9;
+  --primary-hover: #0284C7;
   --primary-fg: #FFFFFF;
-  --primary-bg: rgba(37, 99, 235, 0.10);
+  --primary-bg: rgba(14, 165, 233, 0.10);
 
-  --success: #16A34A;
+  --success: #10B981;
   --success-fg: #FFFFFF;
-  --success-bg: rgba(22, 163, 74, 0.10);
+  --success-bg: rgba(16, 185, 129, 0.10);
 
-  --danger: #DC2626;
+  --danger: #EF4444;
   --danger-fg: #FFFFFF;
-  --danger-bg: rgba(220, 38, 38, 0.10);
+  --danger-bg: rgba(239, 68, 68, 0.10);
 
-  --warning: #CA8A04;
+  --warning: #EAB308;
   --warning-fg: #FFFFFF;
-  --warning-bg: rgba(202, 138, 4, 0.10);
+  --warning-bg: rgba(234, 179, 8, 0.10);
 
   /* Shadows — soft, offset shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);

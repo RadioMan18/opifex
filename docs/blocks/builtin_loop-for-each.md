@@ -7,7 +7,7 @@
 
 ## Description
 
-Iterates over an array of items, executing a sub-graph body for each item. Bounded — max iterations enforced to prevent runaway loops.
+Iterates over an array of items, executing a sub-graph body for each item. Bounded — max iterations enforced to prevent runaway loops. Display name: **Item Iterator**.
 
 ## Inputs
 

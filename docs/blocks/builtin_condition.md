@@ -7,7 +7,7 @@
 
 ## Description
 
-Branches execution based on a boolean condition. Outputs on either `true` or `false` port.
+Branches execution based on a boolean condition. Outputs on either `true` or `false` port. Display name: **Logic Gate**.
 
 ## Inputs
 

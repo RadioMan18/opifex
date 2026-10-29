@@ -7,7 +7,7 @@
 
 ## Description
 
-Terminal output block. Returns the final result to the user. Every graph should end at a Final Answer block.
+Terminal output block. Returns the final result to the user. Every graph should end at a **Result Terminal** block. Display name: **Result Terminal**.
 
 ## Inputs
 

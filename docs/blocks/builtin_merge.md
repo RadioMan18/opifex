@@ -7,7 +7,7 @@
 
 ## Description
 
-Merges multiple inputs into a single output. Skip-tolerant — missing inputs do not block the merge.
+Merges multiple inputs into a single output. Skip-tolerant — missing inputs do not block the merge. Display name: **Stream Merger**.
 
 ## Inputs
 
