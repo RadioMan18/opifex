@@ -68,7 +68,7 @@
     <!-- Main canvas area -->
     <div
       ref="canvasContainer"
-      class="flex-1 overflow-hidden relative"
+      class="flex-1 overflow-hidden relative flex"
       @dragover.prevent="onDragOver"
       @dragenter="onDragEnter"
       @dragleave="onDragLeave"
@@ -161,43 +161,20 @@
 
       <!-- Run button (top right of canvas) -->
       <div class="absolute top-4 right-4 z-20">
-        <button
-          @click="runGraph"
-          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-lg flex items-center gap-2 transition-colors"
-          title="Run"
-        >
-          <span class="text-xs font-medium">Run</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Workflow tabs (bottom bar) -->
-      <div class="absolute bottom-0 left-0 right-0 h-10 bg-slate-900 border-t border-slate-800 flex items-center gap-1 px-2 z-20">
-        <button
-          class="px-3 py-1 text-xs bg-slate-800 border border-slate-700 rounded text-slate-300 hover:bg-slate-700 transition-colors"
-          title="Workflow 1"
-        >
-          Workflow 1
-        </button>
-        <button
-          class="px-3 py-1 text-xs bg-slate-800/50 border border-slate-700/50 rounded text-slate-500 hover:bg-slate-800 transition-colors"
-          title="Workflow 2"
-        >
-          Workflow 2
-        </button>
-        <button
-          class="px-2 py-1 text-xs bg-slate-900 border border-slate-800 rounded text-indigo-400 hover:bg-slate-800 transition-colors"
-          title="Add workflow"
-        >
-          +
-        </button>
+        <RunControl :agent-id="selectedAgentId" />
       </div>
     </div>
+
+    <!-- Right sidebar: Pin panel -->
+    <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
+      <PinPanel
+        :agent-id="selectedAgentId"
+        :node-id="selectedNodeId"
+        :port-id="selectedPortId"
+        :value="selectedPortValue"
+      />
+    </div>
   </div>
-</template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
@@ -214,6 +191,8 @@ import { CanvasAdapter } from '@/services/canvasAdapter';
 import AgentNode from '@/components/canvas/AgentNode.vue';
 import ConnectorNode from '@/components/canvas/ConnectorNode.vue';
 import StepEdge from '@/components/canvas/StepEdge.vue';
+import RunControl from '@/components/RunControl.vue';
+import PinPanel from '@/components/PinPanel.vue';
 
 const store = useGraphStore();
 
@@ -222,6 +201,10 @@ const blocks = computed(() => store.blocks);
 const breadcrumbs = computed(() => store.breadcrumbs);
 const isInSubGraph = computed(() => store.isInSubGraph);
 const errorCount = computed(() => store.errorCount);
+const selectedAgentId = ref<string | undefined>(undefined);
+const selectedNodeId = ref<string | undefined>(undefined);
+const selectedPortId = ref<string | undefined>(undefined);
+const selectedPortValue = ref<any>(undefined);
 
 const flowNodes = computed(() => {
   const g = graph.value;
@@ -288,6 +271,13 @@ function onNodeDrag(event: NodeDragEvent) {
 
 function onNodeClick(event: NodeMouseEvent) {
   store.selectNode(event.node.id);
+  selectedNodeId.value = event.node.id;
+  // Default to first output port if available
+  const node = graph.value?.nodes.find((n) => n.id === event.node.id);
+  const block = blocks.value.find((b) => b.id === node?.blockId);
+  const firstOutput = block?.outputs?.[0];
+  selectedPortId.value = firstOutput?.id ?? undefined;
+  selectedPortValue.value = undefined;
 }
 
 function onBackgroundClick() {

@@ -4,6 +4,7 @@ mod connector;
 mod files;
 mod ollama;
 mod plan;
+mod run;
 mod template;
 
 #[allow(dead_code)]
@@ -18,6 +19,14 @@ pub use conversation::{
 pub use connector::{
     check_tool_approval, create_connector, delete_connector, get_connector, grant_connector,
     list_connector_grants, list_connectors, revoke_connector, update_connector,
+};
+#[allow(dead_code)]
+pub use run::{
+    pin_agent_data, run_agent_graph, unpin_agent_data, get_pinned_data, get_run_status,
+};
+#[allow(dead_code)]
+pub use run::{
+    PinDataInput, PinnedDataDto, RunAgentGraphInput, RunStatusDto, UnpinDataInput,
 };
 #[allow(dead_code)]
 pub use ollama::{

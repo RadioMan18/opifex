@@ -340,3 +340,76 @@ export async function checkToolApproval(
   );
   return { allowed: result.allowed, requiresApproval: result.requires_approval };
 }
+
+// Run IPC types (snake_case to match Rust backend)
+interface RunAgentGraphInput {
+  agent_id: string;
+  mode: 'live' | 'mock';
+}
+
+interface PinDataInput {
+  agent_id: string;
+  node_id: string;
+  port_id: string;
+  value: any;
+}
+
+interface UnpinDataInput {
+  agent_id: string;
+  node_id: string;
+  port_id: string;
+}
+
+interface GetPinnedDataInput {
+  agent_id: string;
+}
+
+interface PinnedDataDto {
+  node_id: string;
+  port_id: string;
+  value: any;
+  created_at: string;
+}
+
+interface RunStatusDto {
+  run_id: string;
+  agent_id: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  node_count: number;
+}
+
+interface Run {
+  id: string;
+  graph_id: string;
+  graph_hash: string;
+  mode: string;
+  scope_json: any;
+  trigger_json: any | null;
+  status: string;
+  error_json: any | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
+// Run IPC
+export async function runAgentGraph(input: RunAgentGraphInput): Promise<Run> {
+  return invoke('run_agent_graph', { input });
+}
+
+export async function pinAgentData(input: PinDataInput): Promise<void> {
+  return invoke('pin_agent_data', { input });
+}
+
+export async function unpinAgentData(input: UnpinDataInput): Promise<void> {
+  return invoke('unpin_agent_data', { input });
+}
+
+export async function getPinnedData(input: GetPinnedDataInput): Promise<PinnedDataDto[]> {
+  return invoke('get_pinned_data', { input });
+}
+
+export async function getRunStatus(input: GetPinnedDataInput): Promise<RunStatusDto | null> {
+  return invoke('get_run_status', { input });
+}
