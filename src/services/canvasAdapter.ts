@@ -54,6 +54,42 @@ export class CanvasAdapter {
   }
 
   /**
+   * Check whether two nodes can be connected (node-to-node, Gumloop model).
+   * Mapping (which input uses which output) happens inside the target node inspector.
+   */
+  static canConnectNodes(
+    sourceNode: { block: { outputs: BlockPort[] } },
+    targetNode: { block: { inputs: BlockPort[] } }
+  ): ConformanceCheckResult {
+    // Source must have at least one output
+    if (!sourceNode.block.outputs || sourceNode.block.outputs.length === 0) {
+      return { allowed: false, reason: 'Source node has no outputs.' };
+    }
+
+    // Target must have at least one input
+    if (!targetNode.block.inputs || targetNode.block.inputs.length === 0) {
+      return { allowed: false, reason: 'Target node has no inputs.' };
+    }
+
+    // Check type compatibility between at least one output and one input
+    const hasCompatiblePair = sourceNode.block.outputs.some((out) =>
+      targetNode.block.inputs.some((inp) => {
+        if (out.type === 'any' || inp.type === 'any') return true;
+        return out.type === inp.type;
+      })
+    );
+
+    if (!hasCompatiblePair) {
+      return {
+        allowed: false,
+        reason: 'No compatible output/input type pair between nodes.',
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  /**
    * Get all compatible target types for a given source port type.
    */
   static compatibleTargetTypes(sourceType: PortType): PortType[] {

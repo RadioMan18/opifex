@@ -231,9 +231,7 @@ export interface NodeInstance {
 export interface EdgeInstance {
   id: string;
   source: string;
-  sourceHandle: string;
   target: string;
-  targetHandle: string;
 }
 
 export interface Viewport {

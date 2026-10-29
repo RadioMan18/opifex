@@ -118,9 +118,7 @@ function toggleToolAttachment(toolNodeId: string) {
 
     store.addEdge({
       source: toolNodeId,
-      sourceHandle: toolOutput.id,
       target: props.nodeId,
-      targetHandle: targetInput.id,
     });
   }
 }

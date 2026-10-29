@@ -92,16 +92,12 @@ export const useGraphStore = defineStore('graph', () => {
     }
   }
 
-  // Add an edge
+  // Add an edge (node-to-node, no port handles)
   function addEdge(edge: Omit<EdgeInstance, 'id'>) {
     if (!graph.value) return;
     // Prevent duplicate edges
     const exists = graph.value.edges.some(
-      (e) =>
-        e.source === edge.source &&
-        e.sourceHandle === edge.sourceHandle &&
-        e.target === edge.target &&
-        e.targetHandle === edge.targetHandle
+      (e) => e.source === edge.source && e.target === edge.target
     );
     if (exists) return;
 
@@ -230,6 +226,31 @@ export const useGraphStore = defineStore('graph', () => {
     }
   }
 
+  // Expand a collapsed node
+  function expandNode(nodeId: string) {
+    const node = graph.value?.nodes.find((n) => n.id === nodeId);
+    if (node && node.isCollapsed) {
+      node.isCollapsed = false;
+      graph.value!.updatedAt = new Date().toISOString();
+    }
+  }
+
+  // Collapse an expanded node
+  function collapseNode(nodeId: string) {
+    const node = graph.value?.nodes.find((n) => n.id === nodeId);
+    if (node && !node.isCollapsed) {
+      node.isCollapsed = true;
+      graph.value!.updatedAt = new Date().toISOString();
+    }
+  }
+
+  // Run the graph (execution - wired in Phase 3)
+  async function runGraph() {
+    if (!graph.value) return;
+    // This will call the Tauri command in Phase 3
+    console.log('Running graph:', graph.value.id);
+  }
+
   // Check if we're inside a sub-graph
   const isInSubGraph = computed(() => breadcrumbs.value.length > 0);
 
@@ -258,5 +279,8 @@ export const useGraphStore = defineStore('graph', () => {
     validateGraph,
     drillIntoNode,
     drillOut,
+    expandNode,
+    collapseNode,
+    runGraph,
   };
 });

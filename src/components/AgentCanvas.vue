@@ -1,6 +1,7 @@
 <template>
   <div class="agent-canvas h-full flex flex-col bg-slate-950 relative">
-    <div class="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-800 shrink-0">
+    <!-- Four-tab agent builder header -->
+    <div class="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-800 shrink-0 z-10">
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Canvas</span>
         <span
@@ -34,9 +35,10 @@
       </div>
     </div>
 
+    <!-- Breadcrumb navigation for sub-graph drill-in -->
     <div
       v-if="breadcrumbs.length > 0"
-      class="px-3 py-1.5 bg-slate-900 border-b border-slate-800 shrink-0 overflow-hidden"
+      class="px-3 py-1.5 bg-slate-900 border-b border-slate-800 shrink-0 overflow-hidden z-10"
     >
       <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
         <span
@@ -63,6 +65,7 @@
       </div>
     </div>
 
+    <!-- Main canvas area -->
     <div
       ref="canvasContainer"
       class="flex-1 overflow-hidden relative"
@@ -70,21 +73,24 @@
       @dragenter="onDragEnter"
       @dragleave="onDragLeave"
       @drop="onDrop"
+      @keydown="onKeyDown"
+      tabindex="0"
     >
-<VueFlow
-  :nodes="flowNodes"
-  :edges="flowEdges"
-  fit-view-on-init
-  pan-on-scroll
-  pan-on-drag
-  zoom-on-pan
-  @connect="onConnect"
-  @node-drag="onNodeDrag"
-  @node-click="onNodeClick"
-  @background-click="onBackgroundClick"
-  :node-types="nodeTypes"
-  :edge-types="edgeTypes"
->
+      <VueFlow
+        :nodes="flowNodes"
+        :edges="flowEdges"
+        fit-view-on-init
+        pan-on-scroll
+        pan-on-drag
+        zoom-on-pan
+        @connect="onConnect"
+        @node-drag="onNodeDrag"
+        @node-click="onNodeClick"
+        @background-click="onBackgroundClick"
+        :node-types="nodeTypes"
+        :edge-types="edgeTypes"
+      >
+        <!-- Drop zone overlay -->
         <div
           v-if="dragOver"
           class="absolute inset-0 bg-indigo-500/10 border-2 border-dashed border-indigo-500 flex items-center justify-center pointer-events-none z-10"
@@ -92,14 +98,112 @@
           <span class="text-indigo-300 font-medium text-sm">Drop block here</span>
         </div>
       </VueFlow>
+
+      <!-- Canvas controls (bottom right, Gumloop style) -->
+      <div class="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
+        <div class="flex gap-1">
+          <button
+            @click="fitView"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Fit View (Ctrl/Cmd + 0)"
+          >
+            Fit View
+          </button>
+          <button
+            @click="autoFormat"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Auto Format"
+          >
+            Auto Format
+          </button>
+          <button
+            @click="expandAll"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Expand All Nodes"
+          >
+            Expand All
+          </button>
+          <button
+            @click="collapseAll"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Collapse All Nodes"
+          >
+            Collapse All
+          </button>
+        </div>
+        <div class="flex gap-1 mt-1">
+          <button
+            @click="toggleSnapToGrid"
+            :class="[
+              'px-2 py-1 text-xs rounded border text-slate-300 transition-colors',
+              snapToGrid ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 hover:border-slate-500',
+            ]"
+            title="Snap to Grid"
+          >
+            Snap Grid
+          </button>
+          <button
+            @click="zoomIn"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button
+            @click="zoomOut"
+            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
+            title="Zoom Out"
+          >
+            −
+          </button>
+        </div>
+      </div>
+
+      <!-- Run button (top right of canvas) -->
+      <div class="absolute top-4 right-4 z-20">
+        <button
+          @click="runGraph"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-lg flex items-center gap-2 transition-colors"
+          title="Run"
+        >
+          <span class="text-xs font-medium">Run</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Workflow tabs (bottom bar) -->
+      <div class="absolute bottom-0 left-0 right-0 h-10 bg-slate-900 border-t border-slate-800 flex items-center gap-1 px-2 z-20">
+        <button
+          class="px-3 py-1 text-xs bg-slate-800 border border-slate-700 rounded text-slate-300 hover:bg-slate-700 transition-colors"
+          title="Workflow 1"
+        >
+          Workflow 1
+        </button>
+        <button
+          class="px-3 py-1 text-xs bg-slate-800/50 border border-slate-700/50 rounded text-slate-500 hover:bg-slate-800 transition-colors"
+          title="Workflow 2"
+        >
+          Workflow 2
+        </button>
+        <button
+          class="px-2 py-1 text-xs bg-slate-900 border border-slate-800 rounded text-indigo-400 hover:bg-slate-800 transition-colors"
+          title="Add workflow"
+        >
+          +
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   VueFlow,
+  useVueFlow,
   type NodeDragEvent,
   type NodeMouseEvent,
   type Connection,
@@ -155,13 +259,19 @@ const flowEdges = computed(() => {
     id: edge.id,
     source: edge.source,
     target: edge.target,
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
   }));
 });
 
 const canvasContainer = ref<HTMLDivElement | null>(null);
 const dragOver = ref(false);
+const snapToGrid = ref(false);
+
+// Vue Flow instance methods
+const { fitView: fitViewFn, zoomIn: zoomInFn, zoomOut: zoomOutFn } = useVueFlow();
+
+onMounted(() => {
+  canvasContainer.value?.focus();
+});
 
 function onNodeDrag(event: NodeDragEvent) {
   const node = event.node;
@@ -177,27 +287,20 @@ function onBackgroundClick() {
 }
 
 function onConnect(connection: Connection) {
-  const allNodes = flowNodes.value;
-  const sourceNode = allNodes.find((n: any) => n.id === connection.source);
-  const targetNode = allNodes.find((n: any) => n.id === connection.target);
+  const sourceNode = graph.value?.nodes.find((n) => n.id === connection.source);
+  const targetNode = graph.value?.nodes.find((n) => n.id === connection.target);
 
   if (!sourceNode || !targetNode) return;
 
-  const sourceBlock = (sourceNode.data as any).block;
-  const targetBlock = (targetNode.data as any).block;
+  const sourceBlock = blocks.value.find((b) => b.id === sourceNode.blockId);
+  const targetBlock = blocks.value.find((b) => b.id === targetNode.blockId);
 
   if (!sourceBlock || !targetBlock) return;
 
-  const sourcePort = sourceBlock.outputs.find(
-    (p: any) => p.id === connection.sourceHandle
+  const result = CanvasAdapter.canConnectNodes(
+    { block: { outputs: sourceBlock.outputs } },
+    { block: { inputs: targetBlock.inputs } }
   );
-  const targetPort = targetBlock.inputs.find(
-    (p: any) => p.id === connection.targetHandle
-  );
-
-  if (!sourcePort || !targetPort) return;
-
-  const result = CanvasAdapter.canConnect(sourcePort, targetPort);
   if (!result.allowed) {
     console.warn(`Connection rejected: ${result.reason}`);
     return;
@@ -205,9 +308,7 @@ function onConnect(connection: Connection) {
 
   store.addEdge({
     source: connection.source,
-    sourceHandle: connection.sourceHandle!,
     target: connection.target,
-    targetHandle: connection.targetHandle!,
   });
 }
 
@@ -248,6 +349,14 @@ async function onDrop(event: DragEvent) {
   });
 }
 
+function onKeyDown(event: KeyboardEvent) {
+  // Resume button: Cmd/Ctrl + Shift + Enter
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
+    event.preventDefault();
+    runGraph();
+  }
+}
+
 function blockColor(kind: string): string {
   const colors: Record<string, string> = {
     trigger: '#10B981',
@@ -264,6 +373,64 @@ function blockColor(kind: string): string {
 
 const nodeTypes = { agentNode: AgentNode as any };
 const edgeTypes = { step: StepEdge as any };
+
+function autoFormat() {
+  // Auto-arrange nodes in a clean layout
+  const g = graph.value;
+  if (!g) return;
+  const nodes = g.nodes.slice().sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+  let x = 100;
+  let y = 100;
+  const rowHeight = 200;
+  nodes.forEach((node, i) => {
+    if (i > 0 && i % 3 === 0) {
+      x = 100;
+      y += rowHeight;
+    }
+    store.updateNodePosition(node.id, { x, y });
+    x += 240;
+  });
+}
+
+function expandAll() {
+  const g = graph.value;
+  if (!g) return;
+  g.nodes.forEach((node) => {
+    if (node.isCollapsed) {
+      (store as any).expandNode(node.id);
+    }
+  });
+}
+
+function collapseAll() {
+  const g = graph.value;
+  if (!g) return;
+  g.nodes.forEach((node) => {
+    if (!node.isCollapsed) {
+      (store as any).collapseNode(node.id);
+    }
+  });
+}
+
+function toggleSnapToGrid() {
+  snapToGrid.value = !snapToGrid.value;
+}
+
+function zoomIn() {
+  zoomInFn({ duration: 200 });
+}
+
+function zoomOut() {
+  zoomOutFn({ duration: 200 });
+}
+
+function runGraph() {
+  store.runGraph?.();
+}
+
+function fitView() {
+  fitViewFn({ duration: 300 });
+}
 
 function validateGraph() {
   store.validateGraph();
@@ -282,6 +449,7 @@ function drillToLevel(level: number) {
 function clearBreadcrumbs() {
   store.breadcrumbs = [];
 }
+
 </script>
 
 <style scoped>

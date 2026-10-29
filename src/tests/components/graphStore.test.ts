@@ -94,9 +94,7 @@ describe('GraphStore', () => {
 
     const edgeId = store.addEdge({
       source: node1Id,
-      sourceHandle: 'output',
       target: node2Id,
-      targetHandle: 'input',
     })!;
 
     expect(edgeId).toBeDefined();
@@ -126,15 +124,11 @@ describe('GraphStore', () => {
 
     store.addEdge({
       source: node1Id,
-      sourceHandle: 'output',
       target: node2Id,
-      targetHandle: 'input',
     });
     store.addEdge({
       source: node1Id,
-      sourceHandle: 'output',
       target: node2Id,
-      targetHandle: 'input',
     });
 
     expect(store.graph!.edges.length).toBe(1);
@@ -161,9 +155,7 @@ describe('GraphStore', () => {
 
     store.addEdge({
       source: node1Id,
-      sourceHandle: 'output',
       target: node2Id,
-      targetHandle: 'input',
     });
 
     store.removeNode(node1Id);
@@ -274,8 +266,8 @@ describe('GraphStore', () => {
       isCollapsed: false,
     })!;
 
-    store.addEdge({ source: n1, sourceHandle: 'output', target: n2, targetHandle: 'input' });
-    store.addEdge({ source: n2, sourceHandle: 'output', target: n1, targetHandle: 'input' });
+    store.addEdge({ source: n1, target: n2 });
+    store.addEdge({ source: n2, target: n1 });
 
     store.validateGraph();
     expect(store.validationResult!.valid).toBe(false);
