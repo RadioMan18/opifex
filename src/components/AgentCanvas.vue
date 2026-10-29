@@ -165,16 +165,19 @@
       </div>
     </div>
 
-    <!-- Right sidebar: Pin panel -->
-    <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
-      <PinPanel
-        :agent-id="selectedAgentId"
-        :node-id="selectedNodeId"
-        :port-id="selectedPortId"
-        :value="selectedPortValue"
-      />
+      <!-- Right sidebar: Pin panel -->
+      <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
+        <PinPanel
+          :agent-id="selectedAgentId"
+          :node-id="selectedNodeId"
+          :port-id="selectedPortId"
+          :value="selectedPortValue"
+        />
+        <SkillEditor :agent-id="selectedAgentId" />
+        <KnowledgeSourceEditor :agent-id="selectedAgentId" />
+        <TriggerEditor :agent-id="selectedAgentId" />
+      </div>
     </div>
-  </div>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
@@ -193,6 +196,9 @@ import ConnectorNode from '@/components/canvas/ConnectorNode.vue';
 import StepEdge from '@/components/canvas/StepEdge.vue';
 import RunControl from '@/components/RunControl.vue';
 import PinPanel from '@/components/PinPanel.vue';
+import SkillEditor from '@/components/inspector/SkillEditor.vue';
+import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
+import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 
 const store = useGraphStore();
 

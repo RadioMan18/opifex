@@ -13,6 +13,9 @@ use crate::commands::{
     create_connector, get_connector, list_connectors, update_connector, delete_connector,
     grant_connector, revoke_connector, list_connector_grants, check_tool_approval,
     pin_agent_data, run_agent_graph, unpin_agent_data, get_pinned_data, get_run_status,
+    create_skill, list_skills,
+    create_knowledge_source, list_knowledge_sources,
+    create_trigger, list_triggers,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -99,6 +102,12 @@ pub fn run() {
       unpin_agent_data,
       get_pinned_data,
       get_run_status,
+      create_skill,
+      list_skills,
+      create_knowledge_source,
+      list_knowledge_sources,
+      create_trigger,
+      list_triggers,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

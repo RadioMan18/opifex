@@ -321,3 +321,41 @@ export interface ConnectorGrant {
   account_id: string | null;
   granted_at: string;
 }
+
+// Skill types (Phase 4)
+export type SkillKind = 'create-with-ai' | 'upload-files' | 'write-instructions' | 'add-existing';
+
+export interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+  kind: SkillKind;
+  ai_editing_enabled: boolean;
+  instructions: string;
+  attached_to: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+// Knowledge Source types (Phase 4)
+export interface KnowledgeSource {
+  id: string;
+  name: string;
+  provider: string;
+  source_ids: string[];
+  citations_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Trigger types (Phase 4)
+export type TriggerKind = 'app-trigger' | 'webhook' | 'scheduled' | 'one-time' | 'create-with-ai';
+
+export interface Trigger {
+  id: string;
+  kind: TriggerKind;
+  config: any;
+  ai_managed: boolean;
+  created_at: string;
+  updated_at: string;
+}

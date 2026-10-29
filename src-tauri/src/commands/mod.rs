@@ -23,6 +23,9 @@ pub use connector::{
 #[allow(dead_code)]
 pub use run::{
     pin_agent_data, run_agent_graph, unpin_agent_data, get_pinned_data, get_run_status,
+    create_skill, list_skills,
+    create_knowledge_source, list_knowledge_sources,
+    create_trigger, list_triggers,
 };
 #[allow(dead_code)]
 pub use run::{

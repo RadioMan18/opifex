@@ -9,14 +9,19 @@ import type {
   CreateConversationInput,
   DbMessage,
   InstalledTemplate,
+  KnowledgeSource,
   OllamaModel,
   OllamaMessage,
   OllamaChatOutput,
   PlanVersion,
   SaveMessageInput,
   SavePlanVersionInput,
+  Skill,
+  SkillKind,
   TemplateEntry,
   TemplateSource,
+  Trigger,
+  TriggerKind,
   UpdateAgentInput,
 } from '@/types/agent';
 
@@ -412,4 +417,98 @@ export async function getPinnedData(input: GetPinnedDataInput): Promise<PinnedDa
 
 export async function getRunStatus(input: GetPinnedDataInput): Promise<RunStatusDto | null> {
   return invoke('get_run_status', { input });
+}
+
+// Skill IPC (snake_case to match Rust backend)
+interface CreateSkillInput {
+  agent_id: string;
+  name: string;
+  description?: string;
+  kind: 'create-with-ai' | 'upload-files' | 'write-instructions' | 'add-existing';
+  ai_editing_enabled: boolean;
+  instructions: string;
+}
+
+interface SkillDto {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  ai_editing_enabled: boolean;
+  instructions: string;
+  attached_to: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSkill(input: CreateSkillInput): Promise<SkillDto> {
+  return invoke('create_skill', { input });
+}
+
+export async function listSkills(input: ListSkillsInput): Promise<SkillDto[]> {
+  return invoke('list_skills', { input });
+}
+
+interface ListSkillsInput {
+  agent_id: string;
+}
+
+// Knowledge Source IPC
+interface CreateKnowledgeSourceInput {
+  agent_id: string;
+  name: string;
+  provider: string;
+  source_ids: string[];
+  citations_enabled: boolean;
+}
+
+interface KnowledgeSourceDto {
+  id: string;
+  name: string;
+  provider: string;
+  source_ids: string[];
+  citations_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createKnowledgeSource(input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceDto> {
+  return invoke('create_knowledge_source', { input });
+}
+
+export async function listKnowledgeSources(input: ListKnowledgeSourcesInput): Promise<KnowledgeSourceDto[]> {
+  return invoke('list_knowledge_sources', { input });
+}
+
+interface ListKnowledgeSourcesInput {
+  agent_id: string;
+}
+
+// Trigger IPC
+interface CreateTriggerInput {
+  agent_id: string;
+  kind: 'app-trigger' | 'webhook' | 'scheduled' | 'one-time' | 'create-with-ai';
+  config: any;
+  ai_managed: boolean;
+}
+
+interface TriggerDto {
+  id: string;
+  kind: string;
+  config: any;
+  ai_managed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createTrigger(input: CreateTriggerInput): Promise<TriggerDto> {
+  return invoke('create_trigger', { input });
+}
+
+export async function listTriggers(input: ListTriggersInput): Promise<TriggerDto[]> {
+  return invoke('list_triggers', { input });
+}
+
+interface ListTriggersInput {
+  agent_id: string;
 }

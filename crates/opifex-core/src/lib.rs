@@ -12,9 +12,9 @@ pub use store::{
     PinnedDataWithContext, Run, RunMode, RunStatus,
 };
 pub use validator::{
-    AccountSelection, AgentGraph, BlockDefinition, BlockKind, BlockOrigin, BlockParameter, BlockPort,
-    ConnectorBlock, ConnectorGrant, EdgeInstance, GraphValidator, NodeInstance, ParameterType,
-    PortConformanceVector, PortDirection, PortType, Position, Severity, ToolApprovalMode,
-    ToolManagementConfig, ToolOverride, ToolOverrideMode, ValidationError, ValidationResult,
-    Viewport, can_connect,
+    AccountSelection, AgentGraph, BlockKind, BlockOrigin, BlockParameter, BlockPort,
+    ConnectorBlock, ConnectorGrant, EdgeInstance, GraphValidator, KnowledgeSource, NodeInstance,
+    ParameterType, PortConformanceVector, PortDirection, PortType, Position, Severity,
+    Skill, SkillKind, ToolApprovalMode, ToolManagementConfig, ToolOverride, ToolOverrideMode,
+    Trigger, TriggerKind, ValidationError, ValidationResult, Viewport, can_connect,
 };

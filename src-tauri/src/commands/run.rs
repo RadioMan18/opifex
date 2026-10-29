@@ -173,3 +173,275 @@ pub async fn get_run_status(
     // The frontend can track the current run state itself.
     Ok(None)
 }
+
+// ============================================================================
+// Skill commands (Phase 4)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateSkillInput {
+    pub agent_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub kind: String, // "create-with-ai" | "upload-files" | "write-instructions" | "add-existing"
+    pub ai_editing_enabled: bool,
+    pub instructions: String,
+}
+
+#[derive(Serialize)]
+pub struct SkillDto {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub kind: String,
+    pub ai_editing_enabled: bool,
+    pub instructions: String,
+    pub attached_to: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn create_skill(
+    db: State<'_, DbState>,
+    input: CreateSkillInput,
+) -> Result<SkillDto, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO skills (id, agent_id, name, description, kind, ai_editing_enabled, instructions, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            id,
+            input.agent_id,
+            input.name,
+            input.description,
+            input.kind,
+            input.ai_editing_enabled,
+            input.instructions,
+            now.clone(),
+            now.clone()
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(SkillDto {
+        id,
+        name: input.name,
+        description: input.description,
+        kind: input.kind,
+        ai_editing_enabled: input.ai_editing_enabled,
+        instructions: input.instructions,
+        attached_to: vec![],
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ListSkillsInput {
+    pub agent_id: String,
+}
+
+#[tauri::command]
+pub async fn list_skills(
+    db: State<'_, DbState>,
+    input: ListSkillsInput,
+) -> Result<Vec<SkillDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, name, description, kind, ai_editing_enabled, instructions, created_at, updated_at FROM skills WHERE agent_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![input.agent_id], |row| {
+        Ok(SkillDto {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            kind: row.get(3)?,
+            ai_editing_enabled: row.get(4)?,
+            instructions: row.get(5)?,
+            attached_to: vec![],
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Knowledge Source commands (Phase 4)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateKnowledgeSourceInput {
+    pub agent_id: String,
+    pub name: String,
+    pub provider: String,
+    pub source_ids: Vec<String>,
+    pub citations_enabled: bool,
+}
+
+#[derive(Serialize)]
+pub struct KnowledgeSourceDto {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub source_ids: Vec<String>,
+    pub citations_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn create_knowledge_source(
+    db: State<'_, DbState>,
+    input: CreateKnowledgeSourceInput,
+) -> Result<KnowledgeSourceDto, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO knowledge_sources (id, agent_id, name, provider, source_ids, citations_enabled, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            id,
+            input.agent_id,
+            input.name,
+            input.provider,
+            serde_json::to_string(&input.source_ids).map_err(|e| e.to_string())?,
+            input.citations_enabled,
+            now.clone(),
+            now.clone()
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(KnowledgeSourceDto {
+        id,
+        name: input.name,
+        provider: input.provider,
+        source_ids: input.source_ids,
+        citations_enabled: input.citations_enabled,
+        created_at: now.clone(),
+        updated_at: now,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ListKnowledgeSourcesInput {
+    pub agent_id: String,
+}
+
+#[tauri::command]
+pub async fn list_knowledge_sources(
+    db: State<'_, DbState>,
+    input: ListKnowledgeSourcesInput,
+) -> Result<Vec<KnowledgeSourceDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, name, provider, source_ids, citations_enabled, created_at, updated_at FROM knowledge_sources WHERE agent_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![input.agent_id], |row| {
+        Ok(KnowledgeSourceDto {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            provider: row.get(2)?,
+            source_ids: serde_json::from_str(&row.get::<_, String>(3)?)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+            citations_enabled: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Trigger commands (Phase 4)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateTriggerInput {
+    pub agent_id: String,
+    pub kind: String, // "app-trigger" | "webhook" | "scheduled" | "one-time" | "create-with-ai"
+    pub config: Value,
+    pub ai_managed: bool,
+}
+
+#[derive(Serialize)]
+pub struct TriggerDto {
+    pub id: String,
+    pub kind: String,
+    pub config: Value,
+    pub ai_managed: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn create_trigger(
+    db: State<'_, DbState>,
+    input: CreateTriggerInput,
+) -> Result<TriggerDto, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO triggers (id, agent_id, kind, config, ai_managed, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            id,
+            input.agent_id,
+            input.kind,
+            serde_json::to_string(&input.config).map_err(|e| e.to_string())?,
+            input.ai_managed,
+            now.clone(),
+            now.clone()
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(TriggerDto {
+        id,
+        kind: input.kind,
+        config: input.config,
+        ai_managed: input.ai_managed,
+        created_at: now.clone(),
+        updated_at: now,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ListTriggersInput {
+    pub agent_id: String,
+}
+
+#[tauri::command]
+pub async fn list_triggers(
+    db: State<'_, DbState>,
+    input: ListTriggersInput,
+) -> Result<Vec<TriggerDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, kind, config, ai_managed, created_at, updated_at FROM triggers WHERE agent_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![input.agent_id], |row| {
+        Ok(TriggerDto {
+            id: row.get(0)?,
+            kind: row.get(1)?,
+            config: serde_json::from_str(&row.get::<_, String>(2)?)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+            ai_managed: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}

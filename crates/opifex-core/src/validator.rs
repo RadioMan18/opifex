@@ -978,4 +978,60 @@ impl Default for ToolManagementConfig {
     }
 }
 
+/// Skill definition — teaches an agent how to do specific work "your way".
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Skill {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub kind: SkillKind,
+    pub ai_editing_enabled: bool,
+    pub instructions: String,
+    pub attached_to: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Skill creation kind.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SkillKind {
+    CreateWithAI,
+    UploadFiles,
+    WriteInstructions,
+    AddExisting,
+}
+
+/// Knowledge source for RAG with citations.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KnowledgeSource {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub source_ids: Vec<String>,
+    pub citations_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Trigger definition — how an agent starts on its own.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Trigger {
+    pub id: String,
+    pub kind: TriggerKind,
+    pub config: serde_json::Value,
+    pub ai_managed: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Trigger kind.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TriggerKind {
+    AppTrigger,
+    Webhook,
+    Scheduled,
+    OneTime,
+    CreateWithAI,
+}
+
 // End of file
