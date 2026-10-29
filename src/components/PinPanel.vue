@@ -88,8 +88,8 @@ async function unpin(nodeId: string, portId: string) {
   try {
     await unpinAgentData({
       agent_id: props.agentId,
-      node_id,
-      port_id,
+      node_id: nodeId,
+      port_id: portId,
     });
     await refreshPins();
   } catch (e: any) {

@@ -42,8 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { runAgentGraph, getRunStatus } from '@/services/ipc';
+import { ref } from 'vue';
+import { runAgentGraph } from '@/services/ipc';
 
 interface Props {
   agentId: string | undefined;

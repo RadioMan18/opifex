@@ -140,6 +140,7 @@ dependencies = [
  "hex",
  "log",
  "opifex-core",
+ "opifex-engine",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",
@@ -2552,10 +2553,12 @@ name = "opifex-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "opifex-core",
  "serde",
  "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
