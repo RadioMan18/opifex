@@ -1034,4 +1034,46 @@ pub enum TriggerKind {
     CreateWithAI,
 }
 
+/// Subagent configuration — delegates work to helper agents.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SubagentConfig {
+    pub agent_id: String,
+    pub task: String,
+    pub max_concurrent: u32,
+    pub wait_for_results: bool,
+    pub depth_limit: u32,
+}
+
+/// Agent built-in capabilities (toggleable).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Ability {
+    WebSearch,
+    WebFetch,
+    ImageGeneration,
+    ChatWidgets,
+    SearchPastConversations,
+    AskQuestion,
+    ToolDiscovery,
+    RulesCreation,
+}
+
+/// Channel — makes an agent reachable outside Opifex.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Channel {
+    pub id: String,
+    pub kind: ChannelKind,
+    pub config: serde_json::Value,
+}
+
+/// Channel kind.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ChannelKind {
+    EmailInbox,
+    Slack,
+    Teams,
+    HostedPage,
+    Developer,
+    MCP,
+}
+
 // End of file

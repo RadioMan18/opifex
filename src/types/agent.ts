@@ -359,3 +359,56 @@ export interface Trigger {
   created_at: string;
   updated_at: string;
 }
+
+// Subagent types (Phase 5)
+export interface SubagentConfig {
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+}
+
+export interface SubagentDto {
+  id: string;
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Ability types (Phase 5)
+export type AbilityKind =
+  | 'web-search'
+  | 'web-fetch'
+  | 'image-generation'
+  | 'chat-widgets'
+  | 'search-past-conversations'
+  | 'ask-question'
+  | 'tool-discovery'
+  | 'rules-creation';
+
+export interface AbilityDto {
+  kind: AbilityKind;
+  enabled: boolean;
+}
+
+// Channel types (Phase 5)
+export type ChannelKind =
+  | 'email-inbox'
+  | 'slack'
+  | 'teams'
+  | 'hosted-page'
+  | 'developer'
+  | 'mcp';
+
+export interface ChannelDto {
+  id: string;
+  kind: ChannelKind;
+  config: any;
+  created_at: string;
+  updated_at: string;
+}

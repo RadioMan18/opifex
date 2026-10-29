@@ -16,6 +16,9 @@ use crate::commands::{
     create_skill, list_skills,
     create_knowledge_source, list_knowledge_sources,
     create_trigger, list_triggers,
+    create_subagent, list_subagents,
+    list_abilities, toggle_ability,
+    create_channel, list_channels,
 };
 use crate::db::init_db;
 use std::path::PathBuf;
@@ -108,6 +111,12 @@ pub fn run() {
       list_knowledge_sources,
       create_trigger,
       list_triggers,
+      create_subagent,
+      list_subagents,
+      list_abilities,
+      toggle_ability,
+      create_channel,
+      list_channels,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

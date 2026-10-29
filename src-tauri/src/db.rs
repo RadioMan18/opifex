@@ -76,6 +76,28 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             version TEXT NOT NULL,
             installed_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS subagents (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            task TEXT NOT NULL,
+            max_concurrent INTEGER NOT NULL DEFAULT 10,
+            wait_for_results INTEGER NOT NULL DEFAULT 1,
+            depth_limit INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS channels (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            config TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
         "#,
     )?;
 

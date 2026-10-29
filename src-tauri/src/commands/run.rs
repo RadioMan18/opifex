@@ -437,9 +437,229 @@ pub async fn list_triggers(
             kind: row.get(1)?,
             config: serde_json::from_str(&row.get::<_, String>(2)?)
                 .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
-            ai_managed: row.get(3)?,
-            created_at: row.get(4)?,
-            updated_at: row.get(5)?,
+        ai_managed: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Subagent commands (Phase 5)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateSubagentInput {
+    pub agent_id: String,
+    pub task: String,
+    pub max_concurrent: u32,
+    pub wait_for_results: bool,
+    pub depth_limit: u32,
+}
+
+#[derive(Serialize)]
+pub struct SubagentDto {
+    pub id: String,
+    pub agent_id: String,
+    pub task: String,
+    pub max_concurrent: u32,
+    pub wait_for_results: bool,
+    pub depth_limit: u32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn create_subagent(
+    db: State<'_, DbState>,
+    input: CreateSubagentInput,
+) -> Result<SubagentDto, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO subagents (id, agent_id, task, max_concurrent, wait_for_results, depth_limit, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            id,
+            input.agent_id,
+            input.task,
+            input.max_concurrent,
+            input.wait_for_results,
+            input.depth_limit,
+            now.clone(),
+            now.clone()
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(SubagentDto {
+        id,
+        agent_id: input.agent_id,
+        task: input.task,
+        max_concurrent: input.max_concurrent,
+        wait_for_results: input.wait_for_results,
+        depth_limit: input.depth_limit,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ListSubagentsInput {
+    pub agent_id: String,
+}
+
+#[tauri::command]
+pub async fn list_subagents(
+    db: State<'_, DbState>,
+    input: ListSubagentsInput,
+) -> Result<Vec<SubagentDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, agent_id, task, max_concurrent, wait_for_results, depth_limit, created_at, updated_at FROM subagents WHERE agent_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![input.agent_id], |row| {
+        Ok(SubagentDto {
+            id: row.get(0)?,
+            agent_id: row.get(1)?,
+            task: row.get(2)?,
+            max_concurrent: row.get(3)?,
+            wait_for_results: row.get(4)?,
+            depth_limit: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Ability commands (Phase 5)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct ListAbilitiesInput {
+    pub agent_id: String,
+}
+
+#[derive(Serialize)]
+pub struct AbilityDto {
+    pub kind: String,
+    pub enabled: bool,
+}
+
+#[tauri::command]
+pub async fn list_abilities(
+    db: State<'_, DbState>,
+    input: ListAbilitiesInput,
+) -> Result<Vec<AbilityDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let abilities = vec![
+        ("web-search", true),
+        ("web-fetch", true),
+        ("image-generation", true),
+        ("chat-widgets", true),
+        ("search-past-conversations", true),
+        ("ask-question", true),
+        ("tool-discovery", true),
+        ("rules-creation", true),
+    ];
+
+    Ok(abilities.into_iter().map(|(kind, enabled)| AbilityDto {
+        kind: kind.to_string(),
+        enabled,
+    }).collect())
+}
+
+#[tauri::command]
+pub async fn toggle_ability(
+    agent_id: String,
+    ability_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    Ok(())
+}
+
+// ============================================================================
+// Channel commands (Phase 5)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateChannelInput {
+    pub agent_id: String,
+    pub kind: String,
+    pub config: serde_json::Value,
+}
+
+#[derive(Serialize)]
+pub struct ChannelDto {
+    pub id: String,
+    pub kind: String,
+    pub config: serde_json::Value,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[tauri::command]
+pub async fn create_channel(
+    db: State<'_, DbState>,
+    input: CreateChannelInput,
+) -> Result<ChannelDto, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO channels (id, agent_id, kind, config, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            id,
+            input.agent_id,
+            input.kind,
+            serde_json::to_string(&input.config).map_err(|e| e.to_string())?,
+            now.clone(),
+            now.clone()
+        ],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(ChannelDto {
+        id,
+        kind: input.kind,
+        config: input.config,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    })
+}
+
+#[derive(Deserialize)]
+pub struct ListChannelsInput {
+    pub agent_id: String,
+}
+
+#[tauri::command]
+pub async fn list_channels(
+    db: State<'_, DbState>,
+    input: ListChannelsInput,
+) -> Result<Vec<ChannelDto>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, kind, config, created_at, updated_at FROM channels WHERE agent_id = ?1"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(params![input.agent_id], |row| {
+        Ok(ChannelDto {
+            id: row.get(0)?,
+            kind: row.get(1)?,
+            config: serde_json::from_str(&row.get::<_, String>(2)?)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
         })
     }).map_err(|e| e.to_string())?;
 

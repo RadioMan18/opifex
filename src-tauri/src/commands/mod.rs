@@ -26,10 +26,17 @@ pub use run::{
     create_skill, list_skills,
     create_knowledge_source, list_knowledge_sources,
     create_trigger, list_triggers,
+    create_subagent, list_subagents,
+    list_abilities, toggle_ability,
+    create_channel, list_channels,
 };
 #[allow(dead_code)]
 pub use run::{
     PinDataInput, PinnedDataDto, RunAgentGraphInput, RunStatusDto, UnpinDataInput,
+    SubagentDto, AbilityDto, ChannelDto,
+    CreateSubagentInput, ListSubagentsInput,
+    ListAbilitiesInput,
+    CreateChannelInput, ListChannelsInput,
 };
 #[allow(dead_code)]
 pub use ollama::{

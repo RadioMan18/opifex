@@ -13,8 +13,9 @@ pub use store::{
 };
 pub use validator::{
     AccountSelection, AgentGraph, BlockKind, BlockOrigin, BlockParameter, BlockPort,
-    ConnectorBlock, ConnectorGrant, EdgeInstance, GraphValidator, KnowledgeSource, NodeInstance,
-    ParameterType, PortConformanceVector, PortDirection, PortType, Position, Severity,
-    Skill, SkillKind, ToolApprovalMode, ToolManagementConfig, ToolOverride, ToolOverrideMode,
-    Trigger, TriggerKind, ValidationError, ValidationResult, Viewport, can_connect,
+    Channel, ChannelKind, ConnectorBlock, ConnectorGrant, EdgeInstance, GraphValidator,
+    KnowledgeSource, NodeInstance, ParameterType, PortConformanceVector, PortDirection,
+    PortType, Position, Severity, Skill, SkillKind, SubagentConfig, ToolApprovalMode,
+    ToolManagementConfig, ToolOverride, ToolOverrideMode, Trigger, TriggerKind,
+    ValidationError, ValidationResult, Viewport, can_connect,
 };

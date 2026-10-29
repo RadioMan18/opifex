@@ -9,19 +9,14 @@ import type {
   CreateConversationInput,
   DbMessage,
   InstalledTemplate,
-  KnowledgeSource,
   OllamaModel,
   OllamaMessage,
   OllamaChatOutput,
   PlanVersion,
   SaveMessageInput,
   SavePlanVersionInput,
-  Skill,
-  SkillKind,
   TemplateEntry,
   TemplateSource,
-  Trigger,
-  TriggerKind,
   UpdateAgentInput,
 } from '@/types/agent';
 
@@ -510,5 +505,86 @@ export async function listTriggers(input: ListTriggersInput): Promise<TriggerDto
 }
 
 interface ListTriggersInput {
+  agent_id: string;
+}
+
+// Subagent IPC
+interface CreateSubagentInput {
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+}
+
+interface SubagentDto {
+  id: string;
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSubagent(input: CreateSubagentInput): Promise<SubagentDto> {
+  return invoke('create_subagent', { input });
+}
+
+export async function listSubagents(input: ListSubagentsInput): Promise<SubagentDto[]> {
+  return invoke('list_subagents', { input });
+}
+
+interface ListSubagentsInput {
+  agent_id: string;
+}
+
+// Ability IPC
+interface ListAbilitiesInput {
+  agent_id: string;
+}
+
+interface AbilityDto {
+  kind: string;
+  enabled: boolean;
+}
+
+export async function listAbilities(input: ListAbilitiesInput): Promise<AbilityDto[]> {
+  return invoke('list_abilities', { input });
+}
+
+export async function toggleAbility(
+  agent_id: string,
+  ability_id: string,
+  enabled: boolean,
+): Promise<void> {
+  return invoke('toggle_ability', { agent_id, ability_id, enabled });
+}
+
+// Channel IPC
+interface CreateChannelInput {
+  agent_id: string;
+  kind: string;
+  config: any;
+}
+
+interface ChannelDto {
+  id: string;
+  kind: string;
+  config: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createChannel(input: CreateChannelInput): Promise<ChannelDto> {
+  return invoke('create_channel', { input });
+}
+
+export async function listChannels(input: ListChannelsInput): Promise<ChannelDto[]> {
+  return invoke('list_channels', { input });
+}
+
+interface ListChannelsInput {
   agent_id: string;
 }
