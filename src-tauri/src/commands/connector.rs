@@ -79,6 +79,7 @@ pub struct ConnectorGrantDto {
     pub granted_at: String,
 }
 
+#[allow(dead_code)]
 fn connector_to_dto(c: &ConnectorBlock) -> ConnectorBlockDto {
     ConnectorBlockDto {
         id: c.id.clone(),
@@ -93,6 +94,7 @@ fn connector_to_dto(c: &ConnectorBlock) -> ConnectorBlockDto {
     }
 }
 
+#[allow(dead_code)]
 fn grant_to_dto(g: &ConnectorGrant) -> ConnectorGrantDto {
     ConnectorGrantDto {
         agent_id: g.agent_id.clone(),
@@ -195,7 +197,7 @@ pub async fn list_connectors(
 ) -> Result<Vec<ConnectorBlockDto>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
-    let mut stmt: rusqlite::Statement<'_> = if let Some(ref cat) = input.category {
+    let mut stmt: rusqlite::Statement<'_> = if let Some(ref _cat) = input.category {
         conn.prepare(
             "SELECT id, name, category, spec_json, created_at, updated_at FROM block_definitions WHERE kind = 'tool' AND category = ?1"
         ).map_err(|e| e.to_string())?
@@ -262,7 +264,7 @@ pub async fn update_connector(
         params![input.id],
         |row| row.get(0)
     ).map_err(|e| e.to_string())?;
-    let spec: serde_json::Value = serde_json::from_str(&spec_str)
+    let _spec: serde_json::Value = serde_json::from_str(&spec_str)
         .map_err(|e| e.to_string())?;
     let spec: serde_json::Value = serde_json::from_str(&spec_str)
         .map_err(|e| e.to_string())?;

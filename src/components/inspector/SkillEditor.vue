@@ -52,14 +52,14 @@
           </div>
 
           <div class="mt-2">
-            <div class="text-[10px] text-slate-400 mb-1">Instructions:</span>
+            <div class="text-[10px] text-slate-400 mb-1">Instructions:</div>
             <div class="text-xs text-slate-300 bg-slate-950 border border-slate-700 rounded px-2 py-1.5 break-all">
               {{ skill.instructions }}
             </div>
           </div>
 
           <div v-if="skill.attached_to.length > 0" class="mt-2">
-            <div class="text-[10px] text-slate-400 mb-1">Attached to:</span>
+            <div class="text-[10px] text-slate-400 mb-1">Attached to:</div>
             <div class="flex flex-wrap gap-1">
               <span
                 v-for="aid in skill.attached_to"

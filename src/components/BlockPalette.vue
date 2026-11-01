@@ -1,60 +1,60 @@
 <template>
-  <div class="block-palette h-full flex flex-col bg-slate-900 border-r border-slate-800 text-slate-200">
-    <div class="p-3 border-b border-slate-800 flex items-center gap-2">
-      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Blocks</span>
+  <div class="block-palette h-full flex flex-col bg-[var(--surface-card)] border-r border-[var(--border)] text-[var(--text-primary)]">
+    <div class="palette-header">
+      <span class="palette-title">Block Palette</span>
       <input
         v-model="searchQuery"
         type="text"
         placeholder="Search blocks..."
-        class="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none transition-colors"
+        class="palette-search"
         aria-label="Search block palette"
       />
     </div>
 
-    <div class="flex-1 overflow-y-auto p-2 space-y-4">
+    <div class="palette-content">
       <div
         v-for="category in categorizedBlocks"
         :key="category.category"
-        class="space-y-2"
+        class="category-group"
       >
-        <h3 class="px-3 py-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-          {{ category.category }}
-        </h3>
+        <h3 class="category-header">{{ category.category }}</h3>
 
         <div
           v-for="block in category.blocks"
           :key="block.id"
-          class="group cursor-pointer select-none"
+          class="block-item"
           draggable="true"
-          @dragstart="onDragStart(block)"
+          @dragstart="(e) => onDragStart(e, block)"
           @dragend="onDragEnd"
         >
-          <div class="p-2.5 rounded bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 hover:border-indigo-500/50 transition-all duration-150">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: blockColor(block.kind) }"></span>
-              <span class="text-sm font-medium text-slate-200 truncate">{{ block.name }}</span>
+          <div class="block-card">
+            <div class="block-card-header">
+              <span class="block-kind-dot" :style="{ backgroundColor: blockColor(block.kind) }"></span>
+              <span class="block-name">{{ block.name }}</span>
             </div>
-            <p class="text-[10px] text-slate-400 truncate">{{ block.description || '' }}</p>
-            <div class="flex items-center gap-1 mt-1.5">
-              <span class="text-[9px] text-slate-500 uppercase tracking-tighter">{{ block.kind }}</span>
-              <span
-                v-for="port in block.inputs.slice(0, 2)"
-                :key="port.id"
-                class="w-1.5 h-1.5 rounded-full bg-blue-400"
-                title="Input"
-              />
-              <span
-                v-for="port in block.outputs.slice(0, 2)"
-                :key="port.id"
-                class="w-1.5 h-1.5 rounded-full bg-green-400"
-                title="Output"
-              />
+            <p class="block-desc">{{ block.description || '' }}</p>
+            <div class="block-meta">
+              <span class="block-kind-label">{{ block.kind }}</span>
+              <div class="block-ports">
+                <span
+                  v-for="port in block.inputs.slice(0, 2)"
+                  :key="port.id"
+                  class="port-dot port-dot--in"
+                  title="Input"
+                />
+                <span
+                  v-for="port in block.outputs.slice(0, 2)"
+                  :key="port.id"
+                  class="port-dot port-dot--out"
+                  title="Output"
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-if="filteredBlocks.length === 0" class="p-4 text-center text-slate-500 text-sm">
+      <div v-if="filteredBlocks.length === 0" class="empty-blocks">
         No blocks found
       </div>
     </div>
@@ -113,7 +113,8 @@ function blockColor(kind: BlockKind): string {
   return colors[kind] ?? '#6B7280';
 }
 
-function onDragStart(block: BlockDefinition) {
+function onDragStart(event: DragEvent, block: BlockDefinition) {
+  event.dataTransfer?.setData('application/opifex-block', JSON.stringify(block));
   emit('block-drag-start', block);
 }
 
@@ -129,18 +130,172 @@ function onDragEnd() {
   height: 100%;
 }
 
+.palette-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--surface-hover);
+}
+
+.palette-title {
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.palette-search {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--type-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.palette-search:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.palette-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.category-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.category-header {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.block-item {
+  cursor: grab;
+  user-select: none;
+}
+
+.block-item:active {
+  cursor: grabbing;
+}
+
+.block-card {
+  padding: var(--space-3);
+  background: var(--surface-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.block-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+.block-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.block-kind-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.block-name {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-desc {
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.block-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.block-kind-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.block-ports {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.port-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.port-dot--in {
+  background: #3B82F6;
+}
+
+.port-dot--out {
+  background: #22C55E;
+}
+
+.empty-blocks {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+}
+
 /* Custom scrollbar */
-.block-palette ::-webkit-scrollbar {
+.palette-content::-webkit-scrollbar {
   width: 8px;
 }
-.block-palette ::-webkit-scrollbar-track {
+.palette-content::-webkit-scrollbar-track {
   background: transparent;
 }
-.block-palette ::-webkit-scrollbar-thumb {
-  background: #374151;
+.palette-content::-webkit-scrollbar-thumb {
+  background: var(--border);
   border-radius: 4px;
 }
-.block-palette ::-webkit-scrollbar-thumb:hover {
-  background: #4B5563;
+.palette-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
 }
 </style>

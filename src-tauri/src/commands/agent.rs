@@ -1,5 +1,4 @@
 use crate::db::DbState;
-use rusqlite::Connection;
 use rusqlite::params;
 use rusqlite::types::Type;
 use rusqlite::OptionalExtension;

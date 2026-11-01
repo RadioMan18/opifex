@@ -13,8 +13,8 @@
 
 use crate::db::DbState;
 use opifex_core::{
-    store::{NodeExecutionInput, NodeExecutionOutput, NodeRun, Run, RunMode, RunStatus},
-    AgentGraph, BlockKind, BlockPort, NodeInstance,
+    store::{Run, RunMode, RunStatus},
+    AgentGraph,
 };
 use opifex_engine::ExecutionEngine;
 use rusqlite::params;
@@ -159,8 +159,8 @@ pub async fn get_pinned_data(
 
 #[tauri::command]
 pub async fn get_run_status(
-    db: State<'_, DbState>,
-    input: GetPinnedDataInput,
+    _db: State<'_, DbState>,
+    _input: GetPinnedDataInput,
 ) -> Result<Option<RunStatusDto>, String> {
     Ok(None)
 }
@@ -448,11 +448,13 @@ pub struct PinnedDataDto {
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct ListPinnedDataInput {
     pub agent_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_pinned_data(
     db: State<'_, DbState>,
@@ -576,6 +578,7 @@ pub async fn list_subagents(
 // ============================================================================
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ListAbilitiesInput {
     pub agent_id: String,
 }
@@ -588,10 +591,10 @@ pub struct AbilityDto {
 
 #[tauri::command]
 pub async fn list_abilities(
-    db: State<'_, DbState>,
-    input: ListAbilitiesInput,
+    _db: State<'_, DbState>,
+    _input: ListAbilitiesInput,
 ) -> Result<Vec<AbilityDto>, String> {
-    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let _conn = _db.conn.lock().map_err(|e| e.to_string())?;
 
     let abilities = vec![
         ("web-search", true),
@@ -612,9 +615,9 @@ pub async fn list_abilities(
 
 #[tauri::command]
 pub async fn toggle_ability(
-    agent_id: String,
-    ability_id: String,
-    enabled: bool,
+    _agent_id: String,
+    _ability_id: String,
+    _enabled: bool,
 ) -> Result<(), String> {
     Ok(())
 }
@@ -704,6 +707,7 @@ pub async fn list_channels(
 // ============================================================================
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct CreateInstructionChangeInput {
     pub agent_id: String,
     pub change_type: String,
@@ -726,6 +730,7 @@ pub struct InstructionChangeDto {
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn create_instruction_change(
     db: State<'_, DbState>,
@@ -768,6 +773,7 @@ pub struct ListInstructionChangesInput {
     pub agent_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_instruction_changes(
     db: State<'_, DbState>,
@@ -801,6 +807,7 @@ pub async fn list_instruction_changes(
 // ============================================================================
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct CreateEvaluationInput {
     pub graph_id: String,
     pub run_id: String,
@@ -822,6 +829,7 @@ pub struct EvaluationDto {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn create_evaluation(
     db: State<'_, DbState>,
@@ -862,6 +870,7 @@ pub struct ListEvaluationsInput {
     pub agent_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_evaluations(
     db: State<'_, DbState>,
@@ -894,6 +903,7 @@ pub async fn list_evaluations(
 // ============================================================================
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct CreateReflectionInput {
     pub run_id: String,
     pub summary: String,
@@ -911,6 +921,7 @@ pub struct ReflectionDto {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn create_reflection(
     db: State<'_, DbState>,
@@ -947,6 +958,7 @@ pub struct ListReflectionsInput {
     pub run_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_reflections(
     db: State<'_, DbState>,
@@ -979,6 +991,7 @@ pub async fn list_reflections(
 // ============================================================================
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct CreateArtifactInput {
     pub run_id: String,
     pub node_id: String,
@@ -1002,6 +1015,7 @@ pub struct ArtifactDto {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn create_artifact(
     db: State<'_, DbState>,
@@ -1044,6 +1058,7 @@ pub struct ListArtifactsInput {
     pub run_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_artifacts(
     db: State<'_, DbState>,
@@ -1088,6 +1103,7 @@ pub struct MessagingModeDto {
     pub mode: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn set_messaging_mode(
     db: State<'_, DbState>,
@@ -1117,6 +1133,7 @@ pub struct GetMessagingModeInput {
     pub agent_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn get_messaging_mode(
     db: State<'_, DbState>,
@@ -1150,7 +1167,7 @@ pub struct CreateSetupStepInput {
     pub kind: String,
     pub completed: bool,
     pub required: bool,
-    pub order: u32,
+    pub step_order: u32,
 }
 
 #[derive(Serialize)]
@@ -1162,11 +1179,12 @@ pub struct SetupStepDto {
     pub kind: String,
     pub completed: bool,
     pub required: bool,
-    pub order: u32,
+    pub step_order: u32,
     pub created_at: String,
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn create_setup_step(
     db: State<'_, DbState>,
@@ -1177,7 +1195,7 @@ pub async fn create_setup_step(
     let now = chrono::Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO setup_steps (id, agent_id, name, description, kind, completed, required, order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO setup_steps (id, agent_id, name, description, kind, completed, required, step_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             id,
             input.agent_id,
@@ -1186,7 +1204,7 @@ pub async fn create_setup_step(
             input.kind,
             input.completed,
             input.required,
-            input.order,
+            input.step_order,
             now.clone(),
             now.clone()
         ],
@@ -1200,7 +1218,7 @@ pub async fn create_setup_step(
         kind: input.kind,
         completed: input.completed,
         required: input.required,
-        order: input.order,
+        step_order: input.step_order,
         created_at: now.clone(),
         updated_at: now.clone(),
     })
@@ -1211,6 +1229,7 @@ pub struct ListSetupStepsInput {
     pub agent_id: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn list_setup_steps(
     db: State<'_, DbState>,
@@ -1219,7 +1238,7 @@ pub async fn list_setup_steps(
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
     let mut stmt = conn.prepare(
-        "SELECT id, agent_id, name, description, kind, completed, required, order, created_at, updated_at FROM setup_steps WHERE agent_id = ?1 ORDER BY \"order\""
+        "SELECT id, agent_id, name, description, kind, completed, required, step_order, created_at, updated_at FROM setup_steps WHERE agent_id = ?1 ORDER BY \"step_order\""
     ).map_err(|e| e.to_string())?;
 
     let rows = stmt.query_map(params![input.agent_id], |row| {
@@ -1231,7 +1250,7 @@ pub async fn list_setup_steps(
             kind: row.get(4)?,
             completed: row.get(5)?,
             required: row.get(6)?,
-            order: row.get(7)?,
+            step_order: row.get(7)?,
             created_at: row.get(8)?,
             updated_at: row.get(9)?,
         })
@@ -1248,6 +1267,7 @@ pub async fn list_setup_steps(
 pub struct ApplyOppyEditInput {
     pub agent_id: String,
     pub graph_id: String,
+    #[allow(dead_code)]
     pub op: String,
 }
 
@@ -1259,9 +1279,10 @@ pub struct ApplyOppyEditOutput {
     pub message: String,
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn apply_oppy_edit(
-    db: State<'_, DbState>,
+    _db: State<'_, DbState>,
     input: ApplyOppyEditInput,
 ) -> Result<ApplyOppyEditOutput, String> {
     Ok(ApplyOppyEditOutput {

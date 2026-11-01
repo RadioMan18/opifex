@@ -62,11 +62,16 @@ function formatDate(iso: string): string {
     <div class="plan-header">
       <div class="plan-title">
         <svg class="plan-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="12 2 2 7 12 12 22 7 12 2"/>
-          <polyline points="2 17 12 22 22 17"/>
-          <polyline points="2 12 12 17 22 12"/>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
         </svg>
-        <h2>{{ props.agentName }} Plan</h2>
+        <div>
+          <h2>{{ props.agentName }} Plan</h2>
+          <div class="plan-subtitle">Review and refine your agent specification</div>
+        </div>
       </div>
       <div class="plan-actions">
         <button class="btn-version" @click="showVersions = !showVersions" :class="{ active: showVersions }">
@@ -78,63 +83,75 @@ function formatDate(iso: string): string {
     </div>
 
     <div class="plan-content">
-      <div class="plan-section">
-        <label class="section-label">Goal</label>
+      <section class="plan-section plan-section--objective">
+        <header class="section-header">
+          <label class="section-label">Objective</label>
+        </header>
         <textarea
           v-model="planGoal"
           class="plan-input"
           placeholder="What does this agent accomplish?"
           rows="3"
         ></textarea>
-      </div>
+      </section>
 
-      <div class="plan-section">
-        <label class="section-label">Steps</label>
+      <section class="plan-section">
+        <header class="section-header">
+          <label class="section-label">Role & Scope</label>
+        </header>
         <ol v-if="plan?.steps && plan.steps.length" class="plan-steps-preview">
           <li v-for="(step, idx) in plan.steps" :key="idx">{{ step.action }}</li>
         </ol>
         <p v-else class="plan-steps-empty">—</p>
-      </div>
+      </section>
 
-      <div class="plan-section">
-        <label class="section-label">Tools</label>
+      <section class="plan-section">
+        <header class="section-header">
+          <label class="section-label">Tools & Capabilities</label>
+        </header>
         <textarea
           v-model="planTools"
           class="plan-input"
           placeholder="knowledge_base, ticket_system, crm"
-          rows="3"
+          rows="2"
         ></textarea>
-      </div>
+      </section>
 
-      <div class="plan-section">
-        <label class="section-label">Knowledge Sources</label>
+      <section class="plan-section">
+        <header class="section-header">
+          <label class="section-label">Data & Knowledge Sources</label>
+        </header>
         <textarea
           v-model="planKnowledge"
           class="plan-input"
           placeholder="faq.md, product_docs.pdf, pricing.md"
-          rows="3"
+          rows="2"
         ></textarea>
-      </div>
+      </section>
 
-      <div class="plan-section">
-        <label class="section-label">Triggers</label>
+      <section class="plan-section">
+        <header class="section-header">
+          <label class="section-label">Triggers</label>
+        </header>
         <textarea
           v-model="planTriggers"
           class="plan-input"
           placeholder="customer_message, new_lead, meeting_request"
-          rows="3"
+          rows="2"
         ></textarea>
-      </div>
+      </section>
 
-      <div class="plan-section">
-        <label class="section-label">Outputs</label>
+      <section class="plan-section">
+        <header class="section-header">
+          <label class="section-label">Outputs</label>
+        </header>
         <textarea
           v-model="planOutputs"
           class="plan-input"
           placeholder="response, ticket, report, chart"
-          rows="3"
+          rows="2"
         ></textarea>
-      </div>
+      </section>
     </div>
 
     <div v-if="showVersions" class="version-history">
@@ -210,12 +227,12 @@ function formatDate(iso: string): string {
   <div v-else class="plan-empty">
     <div class="empty-icon">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="12 2 2 7 12 12 22 7 12 2"/>
-        <polyline points="2 17 12 22 22 17"/>
-        <polyline points="2 12 12 17 22 12"/>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
       </svg>
     </div>
-    <p>Start a conversation with Oppy to build your agent plan.</p>
+    <h3 class="empty-title">Plan not yet created</h3>
+    <p class="empty-desc">Start a conversation with Oppy to build your agent plan. The plan will appear here as the artifact you're building and reviewing.</p>
   </div>
 </template>
 
@@ -237,10 +254,16 @@ function formatDate(iso: string): string {
   background: var(--surface-hover);
 }
 
-.plan-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--primary);
+.plan-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.plan-subtitle {
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
 }
 
 .plan-title h2 {
@@ -263,13 +286,28 @@ function formatDate(iso: string): string {
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
 }
 
 .plan-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.plan-section--objective {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, var(--surface-base) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .section-label {
@@ -457,16 +495,31 @@ function formatDate(iso: string): string {
   padding: var(--space-8);
 }
 
-.empty-icon {
-  width: 48px;
-  height: 48px;
-  color: var(--text-muted);
-  margin-bottom: var(--space-3);
+.empty-title {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--type-lg);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.plan-empty p {
-  font-size: var(--type-base);
+.empty-desc {
+  font-size: var(--type-sm);
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.6;
   margin: 0;
+}
+
+.plan-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  padding: var(--space-8);
+  gap: var(--space-3);
 }
 
 .plan-diff-view {

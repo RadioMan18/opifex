@@ -44,7 +44,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { pinAgentData, unpinAgentData, getPinnedData } from '@/services/ipc';
+import { unpinAgentData, getPinnedData } from '@/services/ipc';
 
 interface Props {
   agentId: string | undefined;
@@ -63,22 +63,6 @@ async function refreshPins() {
     pinnedData.value = data;
   } catch (e: any) {
     console.error('Failed to load pinned data:', e);
-  }
-}
-
-async function pin() {
-  if (!props.agentId || !props.nodeId || !props.portId) return;
-
-  try {
-    await pinAgentData({
-      agent_id: props.agentId,
-      node_id: props.nodeId,
-      port_id: props.portId,
-      value: props.value,
-    });
-    await refreshPins();
-  } catch (e: any) {
-    console.error('Failed to pin data:', e);
   }
 }
 

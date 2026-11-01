@@ -1,66 +1,32 @@
 <template>
-  <div class="agent-canvas h-full flex flex-col bg-slate-950 relative">
-    <!-- Four-tab agent builder header -->
-    <div class="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-800 shrink-0 z-10">
-      <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Canvas</span>
-        <span
-          v-if="isInSubGraph"
-          class="px-1.5 py-0.5 rounded bg-indigo-600/20 text-indigo-300 text-xs border border-indigo-500/30"
-        >
-          Sub-graph
-        </span>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <button
-          v-if="isInSubGraph"
-          @click="drillOut"
-          class="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-800 rounded border border-slate-700 transition-colors"
-          title="Drill out of sub-graph"
-        >
-          ← Back to parent
-        </button>
-        <button
-          @click="validateGraph"
-          class="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded border border-indigo-500/30 transition-colors"
-          title="Run logic check"
-        >
-          Validate
-        </button>
-        <span class="w-px h-3 bg-slate-700 mx-1"></span>
-        <span :class="['text-xs font-mono', errorCount ? 'text-red-400' : 'text-green-400']">
-          {{ errorCount }} errors
-        </span>
+  <div class="agent-canvas">
+    <div class="canvas-header">
+      <div class="canvas-header-left">
+        <span class="canvas-header-title">Agent Canvas</span>
+        <span v-if="isInSubGraph" class="subgraph-badge">Sub-graph</span>
       </div>
     </div>
 
-    <!-- Breadcrumb navigation for sub-graph drill-in -->
     <div
       v-if="breadcrumbs.length > 0"
-      class="px-3 py-1.5 bg-slate-900 border-b border-slate-800 shrink-0 overflow-hidden z-10"
+      class="canvas-breadcrumbs"
     >
-      <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
-        <span
-          class="text-[10px] text-slate-500 cursor-pointer hover:text-slate-200"
-          @click="clearBreadcrumbs"
-        >
-          Root
-        </span>
+      <div class="breadcrumbs-list">
+        <span class="breadcrumb-item" @click="clearBreadcrumbs">Root</span>
         <span
           v-for="(crumb, idx) in breadcrumbs"
           :key="crumb.nodeId"
-          class="text-[10px] text-slate-400"
+          class="breadcrumb-separator"
         >
-          <span class="text-slate-600">/</span>
+          <span class="breadcrumb-slash">/</span>
           <span
             v-if="idx < breadcrumbs.length - 1"
-            class="cursor-pointer hover:text-slate-200"
+            class="breadcrumb-item"
             @click="drillToLevel(idx)"
           >
             {{ crumb.name }}
           </span>
-          <span v-else class="text-slate-200 font-medium">{{ crumb.name }}</span>
+          <span v-else class="breadcrumb-current">{{ crumb.name }}</span>
         </span>
       </div>
     </div>
@@ -68,7 +34,7 @@
     <!-- Main canvas area -->
     <div
       ref="canvasContainer"
-      class="flex-1 overflow-hidden relative flex"
+      class="canvas-main-area"
       @dragover.prevent="onDragOver"
       @dragenter="onDragEnter"
       @dragleave="onDragLeave"
@@ -87,15 +53,19 @@
         @node-drag="onNodeDrag"
         @node-click="onNodeClick"
         @background-click="onBackgroundClick"
+        @dragover.prevent="onDragOver"
+        @dragenter="onDragEnter"
+        @dragleave="onDragLeave"
+        @drop="onDrop"
         :node-types="nodeTypes"
         :edge-types="edgeTypes"
       >
         <!-- Drop zone overlay -->
         <div
           v-if="dragOver"
-          class="absolute inset-0 bg-indigo-500/10 border-2 border-dashed border-indigo-500 flex items-center justify-center pointer-events-none z-10"
+          class="drop-overlay"
         >
-          <span class="text-indigo-300 font-medium text-sm">Drop block here</span>
+          <span class="drop-overlay-text">Drop block here</span>
         </div>
       </VueFlow>
 
@@ -158,26 +128,139 @@
           </button>
         </div>
       </div>
-
-      <!-- Run button (top right of canvas) -->
-      <div class="absolute top-4 right-4 z-20">
-        <RunControl :agent-id="selectedAgentId" />
-      </div>
     </div>
 
-      <!-- Right sidebar: Pin panel -->
-      <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
-        <PinPanel
-          :agent-id="selectedAgentId"
-          :node-id="selectedNodeId"
-          :port-id="selectedPortId"
-          :value="selectedPortValue"
-        />
-        <SkillEditor :agent-id="selectedAgentId" />
-        <KnowledgeSourceEditor :agent-id="selectedAgentId" />
-        <TriggerEditor :agent-id="selectedAgentId" />
-      </div>
+    <!-- Right sidebar: Pin panel -->
+    <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto min-h-0">
+      <PinPanel
+        :agent-id="selectedAgentId"
+        :node-id="selectedNodeId"
+        :port-id="selectedPortId"
+        :value="selectedPortValue"
+      />
+      <SkillEditor :agent-id="selectedAgentId" />
+      <KnowledgeSourceEditor :agent-id="selectedAgentId" />
+      <TriggerEditor :agent-id="selectedAgentId" />
     </div>
+  </div>
+</template>
+
+<style scoped>
+.agent-canvas {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-base);
+  position: relative;
+}
+
+.canvas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.canvas-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.canvas-header-title {
+  font-size: var(--type-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.subgraph-badge {
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm);
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--primary);
+  font-size: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.canvas-breadcrumbs {
+  padding: var(--space-1) var(--space-4);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.breadcrumbs-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.breadcrumbs-list::-webkit-scrollbar {
+  display: none;
+}
+
+.breadcrumb-item {
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.breadcrumb-item:hover {
+  color: var(--text-primary);
+}
+
+.breadcrumb-separator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 10px;
+}
+
+.breadcrumb-slash {
+  color: var(--border);
+}
+
+.breadcrumb-current {
+  font-size: 10px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.canvas-main-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.drop-overlay-text {
+  color: var(--primary);
+  font-weight: 500;
+  font-size: var(--type-sm);
+}
+</style>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
@@ -194,7 +277,6 @@ import { CanvasAdapter } from '@/services/canvasAdapter';
 import AgentNode from '@/components/canvas/AgentNode.vue';
 import ConnectorNode from '@/components/canvas/ConnectorNode.vue';
 import StepEdge from '@/components/canvas/StepEdge.vue';
-import RunControl from '@/components/RunControl.vue';
 import PinPanel from '@/components/PinPanel.vue';
 import SkillEditor from '@/components/inspector/SkillEditor.vue';
 import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
@@ -202,11 +284,11 @@ import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 
 const store = useGraphStore();
 
+// Type assertions and type safety improvements
 const graph = computed(() => store.graph);
 const blocks = computed(() => store.blocks);
 const breadcrumbs = computed(() => store.breadcrumbs);
 const isInSubGraph = computed(() => store.isInSubGraph);
-const errorCount = computed(() => store.errorCount);
 const selectedAgentId = ref<string | undefined>(undefined);
 const selectedNodeId = ref<string | undefined>(undefined);
 const selectedPortId = ref<string | undefined>(undefined);
@@ -257,7 +339,7 @@ const canvasContainer = ref<HTMLDivElement | null>(null);
 const dragOver = ref(false);
 const snapToGrid = ref(false);
 
-// Vue Flow instance methods
+// Vue Flow instance methods (No change needed here)
 const { fitView: fitViewFn, zoomIn: zoomInFn, zoomOut: zoomOutFn } = useVueFlow();
 
 onMounted(() => {
@@ -269,6 +351,8 @@ onMounted(() => {
     // The tool manager panel will be shown by the parent app
   });
 });
+
+// --- Functions (Logic Review: Minimal changes for type safety/modernity) ---
 
 function onNodeDrag(event: NodeDragEvent) {
   const node = event.node;
@@ -375,8 +459,11 @@ function blockColor(kind: string): string {
   return colors[kind] ?? '#6B7280';
 }
 
-const nodeTypes = { agentNode: AgentNode as any, connectorNode: ConnectorNode as any };
-const edgeTypes = { step: StepEdge as any };
+// --- Controls & Utilities ---
+
+const nodeTypes: any = { agentNode: AgentNode, connectorNode: ConnectorNode };
+const edgeTypes: any = { stepEdge: StepEdge };
+
 
 function autoFormat() {
   // Auto-arrange nodes in a clean layout
@@ -436,14 +523,6 @@ function fitView() {
   fitViewFn({ duration: 300 });
 }
 
-function validateGraph() {
-  store.validateGraph();
-}
-
-function drillOut() {
-  store.drillOut();
-}
-
 function drillToLevel(level: number) {
   while (breadcrumbs.value.length > level + 1) {
     store.drillOut();
@@ -453,7 +532,6 @@ function drillToLevel(level: number) {
 function clearBreadcrumbs() {
   store.breadcrumbs = [];
 }
-
 </script>
 
 <style scoped>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, ref, computed, onBeforeUnmount } from 'vue';
 import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
 import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
@@ -56,6 +56,27 @@ const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
 const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
 const viewMode = ref<'canvas' | 'oppy'>('canvas');
+const showUtilityMenu = ref(false);
+const utilityMenuRef = ref<HTMLElement | null>(null);
+
+function toggleUtilityMenu() {
+  showUtilityMenu.value = !showUtilityMenu.value;
+}
+
+function closeUtilityMenu() {
+  showUtilityMenu.value = false;
+}
+
+function handleUtilityAction(action: () => void) {
+  action();
+  closeUtilityMenu();
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (utilityMenuRef.value && !utilityMenuRef.value.contains(e.target as Node)) {
+    closeUtilityMenu();
+  }
+}
 
 const defaultBlocks = ref<BlockDefinition[]>([
   {
@@ -224,6 +245,11 @@ onMounted(async () => {
   setupKeyboardShortcuts();
   await loadTemplateSources();
   await loadInstalledTemplates();
+  document.addEventListener('click', handleClickOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside);
 });
 
 function toggleDarkMode() {
@@ -264,32 +290,32 @@ function applyDarkMode() {
     root.style.setProperty('--shadow-md', '0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5)');
     root.style.setProperty('--shadow-lg', '0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6)');
   } else {
-    root.style.removeProperty('--surface-base');
-    root.style.removeProperty('--surface-card');
-    root.style.removeProperty('--surface-hover');
-    root.style.removeProperty('--surface-muted');
-    root.style.removeProperty('--text-primary');
-    root.style.removeProperty('--text-secondary');
-    root.style.removeProperty('--text-muted');
-    root.style.removeProperty('--border');
-    root.style.removeProperty('--border-focus');
-    root.style.removeProperty('--border-hover');
-    root.style.removeProperty('--primary');
-    root.style.removeProperty('--primary-hover');
-    root.style.removeProperty('--primary-fg');
-    root.style.removeProperty('--primary-bg');
-    root.style.removeProperty('--success');
-    root.style.removeProperty('--success-fg');
-    root.style.removeProperty('--success-bg');
-    root.style.removeProperty('--danger');
-    root.style.removeProperty('--danger-fg');
-    root.style.removeProperty('--danger-bg');
-    root.style.removeProperty('--warning');
-    root.style.removeProperty('--warning-fg');
-    root.style.removeProperty('--warning-bg');
-    root.style.removeProperty('--shadow-sm');
-    root.style.removeProperty('--shadow-md');
-    root.style.removeProperty('--shadow-lg');
+    root.style.setProperty('--surface-base', '#F8FAFC');
+    root.style.setProperty('--surface-card', '#FFFFFF');
+    root.style.setProperty('--surface-hover', '#E2E8F0');
+    root.style.setProperty('--surface-muted', '#F1F5F9');
+    root.style.setProperty('--text-primary', '#0F172A');
+    root.style.setProperty('--text-secondary', '#334155');
+    root.style.setProperty('--text-muted', '#475569');
+    root.style.setProperty('--border', '#CBD5E1');
+    root.style.setProperty('--border-focus', '#0B63D9');
+    root.style.setProperty('--border-hover', '#94A3B8');
+    root.style.setProperty('--primary', '#0B63D9');
+    root.style.setProperty('--primary-hover', '#084FB3');
+    root.style.setProperty('--primary-fg', '#FFFFFF');
+    root.style.setProperty('--primary-bg', 'rgba(11, 99, 217, 0.12)');
+    root.style.setProperty('--success', '#0F8F5F');
+    root.style.setProperty('--success-fg', '#FFFFFF');
+    root.style.setProperty('--success-bg', 'rgba(15, 143, 95, 0.12)');
+    root.style.setProperty('--danger', '#B42318');
+    root.style.setProperty('--danger-fg', '#FFFFFF');
+    root.style.setProperty('--danger-bg', 'rgba(180, 35, 24, 0.12)');
+    root.style.setProperty('--warning', '#B86A00');
+    root.style.setProperty('--warning-fg', '#FFFFFF');
+    root.style.setProperty('--warning-bg', 'rgba(184, 106, 0, 0.12)');
+    root.style.setProperty('--shadow-sm', '0 1px 2px rgba(15, 23, 42, 0.08)');
+    root.style.setProperty('--shadow-md', '0 6px 16px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.06)');
+    root.style.setProperty('--shadow-lg', '0 18px 40px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(15, 23, 42, 0.08)');
   }
 
   localStorage.setItem('opifex-theme', isDark ? 'dark' : 'light');
@@ -502,8 +528,8 @@ async function setupKeyboardShortcuts() {
 </script>
 
 <template>
-  <div class="app-container">
-    <div class="top-bar">
+  <div class="app-container" role="application">
+    <header class="top-bar" role="banner">
       <div class="app-brand">
         <span class="brand-name">Opifex</span>
       </div>
@@ -518,64 +544,75 @@ async function setupKeyboardShortcuts() {
         />
       </div>
 
-      <div class="top-bar-actions">
-        <div class="action-group">
-          <button class="btn-secondary" @click="showProviderDialog = true" title="Configure API keys">
-            API Keys
-          </button>
-          <button class="btn-secondary" @click="showImportDialog = true" title="Import agent">Import</button>
-        </div>
-
-        <div class="action-group">
+      <div class="top-bar-actions" aria-label="Top bar actions">
+        <div class="action-group action-group--primary" aria-label="Primary actions">
           <button class="btn-primary" @click="showCreateDialog = true" title="New agent">
             New Agent
           </button>
+          <div class="action-group action-group--segmented" role="tablist" aria-label="Workspace mode">
+            <button
+              class="btn-segment"
+              :class="viewMode === 'canvas' ? 'is-active' : ''"
+              @click="viewMode = 'canvas'"
+              title="Canvas mode"
+              role="tab"
+              :aria-selected="viewMode === 'canvas'"
+            >
+              Canvas
+            </button>
+            <button
+              class="btn-segment"
+              :class="viewMode === 'oppy' ? 'is-active' : ''"
+              @click="viewMode = 'oppy'"
+              title="Oppy chat mode"
+              role="tab"
+              :aria-selected="viewMode === 'oppy'"
+            >
+              Oppy
+            </button>
+          </div>
         </div>
 
-        <div class="action-group">
+        <div class="action-group action-group--utility-menu" ref="utilityMenuRef">
           <button
-            class="btn-text"
-            :class="viewMode === 'canvas' ? 'btn-active' : ''"
-            @click="viewMode = 'canvas'"
-            title="Canvas mode"
+            class="btn-utility btn-utility--menu"
+            @click.stop="toggleUtilityMenu"
+            :aria-expanded="showUtilityMenu"
+            aria-haspopup="true"
+            title="More actions"
           >
-            Canvas
+            ⋯
           </button>
-          <button
-            class="btn-text"
-            :class="viewMode === 'oppy' ? 'btn-active' : ''"
-            @click="viewMode = 'oppy'"
-            title="Oppy chat mode"
-          >
-            Oppy
-          </button>
-        </div>
-
-        <div class="action-group" v-if="currentAgent">
-<button class="btn-secondary" @click="handleGoHome" title="Return to library">
-  Home
-</button>
-        </div>
-
-        <div class="action-group">
-          <button class="btn-text" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
-            {{ isDark ? 'Light' : 'Dark' }}
-          </button>
+          <div v-if="showUtilityMenu" class="utility-menu" role="menu">
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(() => { showProviderDialog = true })">
+              API Keys
+            </button>
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(() => { showImportDialog = true })">
+              Import Agent
+            </button>
+            <button v-if="currentAgent" class="utility-menu-item" role="menuitem" @click="handleUtilityAction(handleGoHome)">
+              Return to Library
+            </button>
+            <div class="utility-menu-divider"></div>
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(toggleDarkMode)">
+              {{ isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </header>
 
     <div class="error-banner" v-if="error && !streaming">{{ error }}</div>
 
-    <div class="panes">
+    <main class="panes" role="main">
       <div v-if="viewMode === 'canvas'" class="canvas-layout">
-        <div class="canvas-palette">
+        <aside class="canvas-palette" role="complementary" aria-label="Block palette">
           <BlockPalette :blocks="defaultBlocks" @block-drag-start="onBlockDragStart" />
-        </div>
+        </aside>
 
-        <div class="canvas-main">
-          <div class="canvas-toolbar">
-            <span class="canvas-title">Agent Canvas</span>
+        <section class="canvas-main" role="region" aria-label="Canvas workspace - system design">
+          <header class="canvas-toolbar">
+            <span class="canvas-title">Agent Canvas • Design your agent's logic and tools</span>
             <div class="canvas-toolbar-actions">
               <button
                 class="btn-secondary"
@@ -585,18 +622,18 @@ async function setupKeyboardShortcuts() {
                 Switch to Oppy
               </button>
             </div>
-          </div>
+          </header>
           <AgentCanvas />
-        </div>
+        </section>
 
-        <div class="canvas-inspector">
+        <aside class="canvas-inspector" role="complementary" aria-label="Node inspector">
           <NodeInspector :nodeId="selectedCanvasNodeId" />
           <AgentToolDrawer :nodeId="selectedCanvasNodeId" />
-        </div>
+        </aside>
       </div>
 
       <div v-else class="oppy-layout">
-        <div class="chat-pane-wrapper">
+        <aside class="chat-pane-wrapper" role="complementary" aria-label="Chat workspace">
           <ChatPane
             v-if="currentAgent"
             :messages="messages"
@@ -631,24 +668,26 @@ async function setupKeyboardShortcuts() {
             @install-marketplace-template="handleInstallMarketplaceTemplate"
             @load-installed-templates="loadInstalledTemplates"
           />
-        </div>
+        </aside>
 
         <div class="divider"></div>
 
-        <PlanPane
-          :plan="currentPlan"
-          :agent-name="currentAgent?.name || 'Agent'"
-          :versions="planVersions"
-          :compare-version-id="compareVersionId"
-          :compare-version="compareVersion"
-          @update="handlePlanUpdate"
-          @save-version="handleSaveVersion"
-          @restore-version="handleRestoreVersion"
-          @compare-version="setCompareVersion"
-          @export-agent="handleExportAgent"
-        />
+        <section class="plan-pane-wrapper" role="region" aria-label="Plan review">
+          <PlanPane
+            :plan="currentPlan"
+            :agent-name="currentAgent?.name || 'Agent'"
+            :versions="planVersions"
+            :compare-version-id="compareVersionId"
+            :compare-version="compareVersion"
+            @update="handlePlanUpdate"
+            @save-version="handleSaveVersion"
+            @restore-version="handleRestoreVersion"
+            @compare-version="setCompareVersion"
+            @export-agent="handleExportAgent"
+          />
+        </section>
       </div>
-    </div>
+    </main>
 
     <div class="modal-overlay" v-if="showCreateDialog" @click.self="showCreateDialog = false">
       <div class="modal" @click.stop>
@@ -741,46 +780,50 @@ async function setupKeyboardShortcuts() {
 </template>
 
 <style scoped>
-/* Opifex design tokens — Operate mode, desktop, Relevance AI inspired */
+:global(body) {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 :root {
   /* Surfaces */
-  --surface-base: #F8FAFC;
-  --surface-card: #FFFFFF;
-  --surface-hover: #F1F5F9;
-  --surface-muted: #F9FAFB;
+  --surface-base: #0B1020;
+  --surface-card: #111827;
+  --surface-elevated: #151E2D;
+  --surface-hover: #1F2937;
+  --surface-muted: #0F172A;
 
   /* Text */
-  --text-primary: #0F172A;
-  --text-secondary: #64748B;
+  --text-primary: #F3F7FF;
+  --text-secondary: #B4C0D2;
+  --text-tertiary: #7C8AA5;
   --text-muted: #94A3B8;
 
   /* Border */
-  --border: #E2E8F0;
-  --border-focus: #0EA5E9;
-  --border-hover: #CBD5E1;
+  --border: #243247;
+  --border-focus: #3B82F6;
+  --border-hover: #334155;
 
   /* Interactive */
-  --primary: #0EA5E9;
-  --primary-hover: #0284C7;
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
   --primary-fg: #FFFFFF;
-  --primary-bg: rgba(14, 165, 233, 0.10);
+  --primary-bg: rgba(59, 130, 246, 0.15);
 
-  --success: #10B981;
+  --success: #22C55E;
   --success-fg: #FFFFFF;
-  --success-bg: rgba(16, 185, 129, 0.10);
+  --success-bg: rgba(34, 197, 94, 0.15);
 
   --danger: #EF4444;
   --danger-fg: #FFFFFF;
-  --danger-bg: rgba(239, 68, 68, 0.10);
+  --danger-bg: rgba(239, 68, 68, 0.15);
 
-  --warning: #EAB308;
+  --warning: #F59E0B;
   --warning-fg: #FFFFFF;
-  --warning-bg: rgba(234, 179, 8, 0.10);
+  --warning-bg: rgba(245, 158, 11, 0.15);
 
   /* Shadows — soft, offset shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.6), 0 8px 18px rgba(0, 0, 0, 0.5);
 
   /* Radius */
   --radius-sm: 6px;
@@ -874,9 +917,10 @@ body {
   padding: 0 var(--space-6);
   background: var(--surface-card);
   border-bottom: 1px solid var(--border);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
@@ -896,53 +940,124 @@ body {
 .top-bar-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  margin-left: -var(--space-8);
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .action-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
+  background: var(--surface-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.action-group--primary {
+  background: var(--surface-base);
+}
+
+.action-group--segmented {
+  padding: 0;
+  overflow: hidden;
+  margin-left: var(--space-1);
+}
+
+.action-group--utility-menu {
+  position: relative;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.btn-utility,
+.btn-segment,
+.btn-primary {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--type-sm);
+  line-height: 1.2;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+}
+
+.btn-secondary,
+.btn-utility {
+  padding: 0.5rem 0.8rem;
+  background: transparent;
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.btn-secondary:hover,
+.btn-utility:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
 }
 
 .btn-secondary {
-  padding: var(--space-3) var(--space-8);
-  font-size: var(--type-sm);
-  background: var(--surface-card);
-  color: var(--text-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
+  background: var(--surface-card);
+  color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
+.btn-utility--theme {
+  min-width: 4.5rem;
+}
+
+.btn-utility--menu {
+  padding: 0.5rem 0.7rem;
+  font-size: var(--type-lg);
+  line-height: 1;
+  min-width: 2.25rem;
+}
+
+.btn-segment {
+  padding: 0.5rem 0.85rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 0;
+  border: none;
+  min-width: 4.75rem;
+}
+
+.btn-segment + .btn-segment {
+  border-left: 1px solid var(--border);
+}
+
+.btn-segment.is-active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px rgba(11, 99, 217, 0.12);
 }
 
 .btn-primary {
-  padding: var(--space-3) var(--space-10);
-  font-size: var(--type-sm);
+  padding: 0.72rem 1.15rem;
   background: var(--primary);
   color: var(--primary-fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
+  border-color: var(--primary);
+  box-shadow: 0 6px 16px rgba(11, 99, 217, 0.22);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -951,8 +1066,47 @@ body {
 
 .btn-primary:disabled {
   background: var(--border-hover);
+  border-color: var(--border-hover);
   color: var(--text-muted);
+  box-shadow: none;
   cursor: not-allowed;
+}
+
+.utility-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 180px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+.utility-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.utility-menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.utility-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
 }
 
 .btn-text {
@@ -970,6 +1124,13 @@ body {
 .btn-text:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+.top-bar .btn-utility:focus-visible,
+.top-bar .btn-segment:focus-visible,
+.top-bar .btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 99, 217, 0.22);
 }
 
 .error-banner {
@@ -1005,6 +1166,15 @@ body {
   width: 1px;
   background: var(--border);
   flex-shrink: 0;
+}
+
+.plan-pane-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  overflow: hidden;
 }
 
 .modal-overlay {
@@ -1225,5 +1395,39 @@ body {
   color: var(--primary);
   font-weight: 600;
   text-decoration: underline;
+}
+
+:global([data-theme='light'] .bg-slate-950),
+:global([data-theme='light'] .bg-slate-900),
+:global([data-theme='light'] .bg-slate-800),
+:global([data-theme='light'] .bg-slate-800\/50),
+:global([data-theme='light'] .bg-slate-700),
+:global([data-theme='light'] .bg-slate-700\/50) {
+  background-color: var(--surface-card) !important;
+}
+
+:global([data-theme='light'] .text-slate-200),
+:global([data-theme='light'] .text-slate-300),
+:global([data-theme='light'] .text-slate-400),
+:global([data-theme='light'] .text-slate-500),
+:global([data-theme='light'] .text-slate-600) {
+  color: var(--text-secondary) !important;
+}
+
+:global([data-theme='light'] .text-slate-100),
+:global([data-theme='light'] .text-slate-50),
+:global([data-theme='light'] .text-slate-200) {
+  color: var(--text-primary) !important;
+}
+
+:global([data-theme='light'] .border-slate-800),
+:global([data-theme='light'] .border-slate-700),
+:global([data-theme='light'] .border-slate-700\/50),
+:global([data-theme='light'] .border-slate-600) {
+  border-color: var(--border) !important;
+}
+
+:global([data-theme='light'] .hover\:bg-slate-800:hover) {
+  background-color: var(--surface-hover) !important;
 }
 </style>

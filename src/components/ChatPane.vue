@@ -77,17 +77,18 @@ function formatTime(iso: string): string {
       <div class="chat-title">
         <div class="chat-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-7 7h-4a7 7 0 0 1-7-7V5a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7Z"/>
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path>
           </svg>
         </div>
         <div>
           <h2>{{ currentAgentName || 'Oppy' }}</h2>
           <div class="chat-subtitle">
-            <template v-if="interviewing">Interview mode — Oppy is asking questions</template>
-            <template v-else-if="streaming">Building agent...</template>
-            <template v-else-if="buildError">Build failed — check error or retry</template>
-            <template v-else>Agent built — plan ready in panel</template>
+            <template v-if="!currentAgentName">Expert interview • Define your agent</template>
+            <template v-else-if="interviewing">Understanding goal • Clarifying requirements</template>
+            <template v-else-if="streaming">Building plan • Structuring agent</template>
+            <template v-else-if="buildError">Build issue — review and retry</template>
+            <template v-else>Ready to edit • Plan ready for review</template>
           </div>
         </div>
       </div>

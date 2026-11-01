@@ -43,59 +43,59 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Add Trigger Form -->
-    <div v-if="showAddForm" class="mt-4 p-4 rounded bg-slate-800/50 border border-slate-700/50">
-      <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-        Add Trigger
-      </h4>
-      <div class="space-y-3">
-        <div>
-          <label class="text-[10px] text-slate-300 block mb-1">Trigger Kind</label>
-          <select
-            v-model="newTrigger.kind"
-            class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="app-trigger">App Trigger</option>
-            <option value="webhook">Webhook</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="one-time">One-Time</option>
-            <option value="create-with-ai">Create With AI</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-[10px] text-slate-300 block mb-1">Config (JSON)</label>
-          <textarea
-            v-model="newTrigger.config_text"
-            rows="4"
-            class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-xs font-mono text-slate-200 focus:border-indigo-500 focus:outline-none"
-            placeholder='{"key": "value"}'
-          ></textarea>
-        </div>
-        <div class="flex items-center gap-2 mb-2">
-          <input
-            v-model="newTrigger.ai_managed"
-            type="checkbox"
-            class="rounded bg-slate-900 border-slate-600 text-indigo-600 focus:ring-indigo-500"
-          />
-          <label class="text-xs text-slate-300 cursor-pointer">
-            AI Managed (agent can create/edit triggers during task)
-          </label>
-        </div>
-        <div class="flex justify-end gap-2 mt-4">
-          <button
-            @click="showAddForm = false"
-            class="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-200"
-          >
-            Cancel
-          </button>
-          <button
-            @click="saveTrigger"
-            class="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded text-white"
-          >
-            Save
-          </button>
+      <!-- Add Trigger Form -->
+      <div v-if="showAddForm" class="mt-4 p-4 rounded bg-slate-800/50 border border-slate-700/50">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+          Add Trigger
+        </h4>
+        <div class="space-y-3">
+          <div>
+            <label class="text-[10px] text-slate-300 block mb-1">Trigger Kind</label>
+            <select
+              v-model="newTrigger.kind"
+              class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="app-trigger">App Trigger</option>
+              <option value="webhook">Webhook</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="one-time">One-Time</option>
+              <option value="create-with-ai">Create With AI</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-300 block mb-1">Config (JSON)</label>
+            <textarea
+              v-model="newTrigger.config_text"
+              rows="4"
+              class="w-full bg-slate-950 border border-slate-600 rounded px-2 py-1.5 text-xs font-mono text-slate-200 focus:border-indigo-500 focus:outline-none"
+              placeholder='{"key": "value"}'
+            ></textarea>
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <input
+              v-model="newTrigger.ai_managed"
+              type="checkbox"
+              class="rounded bg-slate-900 border-slate-600 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label class="text-xs text-slate-300 cursor-pointer">
+              AI Managed (agent can create/edit triggers during task)
+            </label>
+          </div>
+          <div class="flex justify-end gap-2 mt-4">
+            <button
+              @click="showAddForm = false"
+              class="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              @click="saveTrigger"
+              class="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded text-white"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </div>

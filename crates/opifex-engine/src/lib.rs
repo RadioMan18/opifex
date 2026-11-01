@@ -3,8 +3,8 @@
 //! pinned data support, cancellation, and live/mock modes.
 
 use opifex_core::{
-    store::{NodeExecutionInput, NodeExecutionOutput, NodeRun, NodeRunStatus, Run, RunMode, RunStatus},
-    AgentGraph, BlockKind, BlockPort, EdgeInstance, NodeInstance,
+    store::{NodeExecutionInput, NodeRun, NodeRunStatus, Run, RunMode, RunStatus},
+    AgentGraph, NodeInstance,
 };
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};

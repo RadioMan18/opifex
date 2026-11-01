@@ -166,7 +166,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             kind TEXT NOT NULL,
             completed INTEGER NOT NULL DEFAULT 0,
             required INTEGER NOT NULL DEFAULT 0,
-            order INTEGER NOT NULL DEFAULT 0,
+            step_order INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (agent_id) REFERENCES agents(id)
