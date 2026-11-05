@@ -58,63 +58,79 @@
         </div>
       </VueFlow>
 
-      <!-- Canvas controls (bottom right, Gumloop style) -->
-      <div class="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
-        <div class="flex gap-1">
+      <!-- Canvas controls: one cluster, bottom-left, clear of the nodes -->
+      <div class="canvas-controls" @keydown.esc="showCanvasMenu = false">
+        <div class="canvas-control-group" role="group" aria-label="Canvas zoom">
           <button
-            @click="fitView"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Fit View (Ctrl/Cmd + 0)"
-          >
-            Fit View
-          </button>
-          <button
-            @click="autoFormat"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Auto Format"
-          >
-            Auto Format
-          </button>
-          <button
-            @click="expandAll"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Expand All Nodes"
-          >
-            Expand All
-          </button>
-          <button
-            @click="collapseAll"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Collapse All Nodes"
-          >
-            Collapse All
-          </button>
-        </div>
-        <div class="flex gap-1 mt-1">
-          <button
-            @click="toggleSnapToGrid"
-            :class="[
-              'px-2 py-1 text-xs rounded border text-slate-300 transition-colors',
-              snapToGrid ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 hover:border-slate-500',
-            ]"
-            title="Snap to Grid"
-          >
-            Snap Grid
-          </button>
-          <button
-            @click="zoomIn"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Zoom In"
-          >
-            +
-          </button>
-          <button
+            class="canvas-control-btn"
+            title="Zoom out"
+            aria-label="Zoom out"
             @click="zoomOut"
-            class="px-2 py-1 text-xs bg-slate-800 border border-slate-700 hover:border-slate-500 rounded text-slate-300 hover:text-white transition-colors"
-            title="Zoom Out"
           >
             −
           </button>
+          <button
+            class="canvas-control-btn canvas-zoom-value"
+            title="Reset zoom to 100%"
+            aria-label="Reset zoom to 100%"
+            @click="resetZoom"
+          >
+            {{ zoomPercent }}%
+          </button>
+          <button
+            class="canvas-control-btn"
+            title="Zoom in"
+            aria-label="Zoom in"
+            @click="zoomIn"
+          >
+            +
+          </button>
+        </div>
+
+        <div class="canvas-control-group" role="group" aria-label="Canvas view">
+          <button
+            class="canvas-control-btn canvas-control-btn--wide"
+            title="Fit view (Ctrl/Cmd + 0)"
+            aria-label="Fit view"
+            @click="fitView"
+          >
+            Fit
+          </button>
+        </div>
+
+        <div class="canvas-control-group canvas-control-group--menu">
+          <button
+            class="canvas-control-btn canvas-control-btn--wide"
+            :aria-expanded="showCanvasMenu"
+            aria-haspopup="menu"
+            title="Canvas tools"
+            aria-label="Canvas tools"
+            @click="showCanvasMenu = !showCanvasMenu"
+          >
+            ⋯
+          </button>
+
+          <div v-if="showCanvasMenu" class="canvas-menu" role="menu">
+            <button class="canvas-menu-item" role="menuitem" @click="runAndClose(autoFormat)">
+              Auto format
+            </button>
+            <button class="canvas-menu-item" role="menuitem" @click="runAndClose(expandAll)">
+              Expand all
+            </button>
+            <button class="canvas-menu-item" role="menuitem" @click="runAndClose(collapseAll)">
+              Collapse all
+            </button>
+            <div class="canvas-menu-divider"></div>
+            <button
+              class="canvas-menu-item"
+              role="menuitemcheckbox"
+              :aria-checked="snapToGrid"
+              @click="toggleSnapToGrid"
+            >
+              <span class="canvas-menu-check" aria-hidden="true">{{ snapToGrid ? '✓' : '' }}</span>
+              Snap to grid
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -223,6 +239,117 @@
   display: flex;
 }
 
+.canvas-controls {
+  position: absolute;
+  left: var(--space-4, 12px);
+  bottom: var(--space-4, 12px);
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.canvas-control-group {
+  display: flex;
+  align-items: center;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.canvas-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: var(--type-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.canvas-control-btn:first-child {
+  border-left: none;
+}
+
+.canvas-control-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.canvas-control-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.canvas-control-btn--wide {
+  min-width: 44px;
+}
+
+.canvas-zoom-value {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-control-group--menu {
+  position: relative;
+}
+
+.canvas-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.canvas-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+}
+
+.canvas-menu-item:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.canvas-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.canvas-menu-check {
+  display: inline-block;
+  width: 10px;
+  font-size: 10px;
+  color: var(--primary);
+}
+
 .drop-overlay {
   position: absolute;
   inset: 0;
@@ -287,11 +414,6 @@ const flowNodes = computed(() => {
         hasError,
         isCollapsed: node.isCollapsed,
       },
-      style: {
-        background: blockColor(block?.kind ?? 'utility'),
-        color: '#ffffff',
-        border: hasError ? '2px solid #EF4444' : '1px solid rgba(255,255,255,0.2)',
-      },
     };
   });
 });
@@ -315,8 +437,13 @@ const {
   fitView: fitViewFn,
   zoomIn: zoomInFn,
   zoomOut: zoomOutFn,
+  zoomTo: zoomToFn,
+  viewport,
   screenToFlowCoordinate,
 } = useVueFlow();
+
+const showCanvasMenu = ref(false);
+const zoomPercent = computed(() => Math.round((viewport.value?.zoom ?? 1) * 100));
 
 onMounted(() => {
   canvasContainer.value?.focus();
@@ -435,20 +562,12 @@ function onKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     runGraph();
   }
-}
 
-function blockColor(kind: string): string {
-  const colors: Record<string, string> = {
-    trigger: '#10B981',
-    llm: '#3B82F6',
-    agent: '#8B5CF6',
-    tool: '#F59E0B',
-    control: '#EF4444',
-    output: '#10B981',
-    utility: '#6B7280',
-    subgraph: '#A855F7',
-  };
-  return colors[kind] ?? '#6B7280';
+  // Fit view: Cmd/Ctrl + 0
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key === '0') {
+    event.preventDefault();
+    fitView();
+  }
 }
 
 // --- Controls & Utilities ---
@@ -505,6 +624,15 @@ function zoomIn() {
 
 function zoomOut() {
   zoomOutFn({ duration: 200 });
+}
+
+function resetZoom() {
+  zoomToFn(1, { duration: 200 });
+}
+
+function runAndClose(action: () => void) {
+  action();
+  showCanvasMenu.value = false;
 }
 
 function runGraph() {

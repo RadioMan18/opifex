@@ -1,109 +1,99 @@
 <template>
-  <div
-    class="w-64 p-3 rounded-lg border shadow-md flex flex-col gap-2 group"
-    :style="computedStyle"
-  >
-    <div class="flex items-center justify-between mb-1">
-      <h4 class="text-xs font-bold text-slate-100 truncate">{{ data.label }}</h4>
+  <div class="node-card" :class="{ 'node-card--error': data.hasError }">
+    <span class="node-accent" :style="{ background: accentColor }" aria-hidden="true"></span>
+
+    <header class="node-header">
+      <span class="node-kind-dot" :style="{ background: accentColor }" aria-hidden="true"></span>
+      <h4 class="node-title" :title="data.label">{{ data.label }}</h4>
       <span
         v-if="data.hasError"
-        class="w-1.5 h-1.5 rounded-full bg-red-500"
+        class="node-error-dot"
         title="Validation error"
-        aria-label="Error"
+        aria-label="Validation error"
       ></span>
-    </div>
+    </header>
 
-    <div class="flex items-start gap-3 mb-2">
-      <div class="flex flex-col gap-1.5 flex-1">
-        <template
-          v-for="input in data.block?.inputs || []"
-          :key="input.id"
-        >
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full bg-blue-400" :title="input.name"></div>
-            <span class="text-[10px] text-slate-400 truncate max-w-[120px]" :title="input.name">
-              {{ input.name }}
-            </span>
-          </div>
-        </template>
-      </div>
-    </div>
+    <p class="node-subtitle">{{ kindLabel }}</p>
 
-    <div
-      v-if="Object.keys(data.parameters || {}).length > 0"
-      class="mb-2"
-    >
-      <div class="text-[10px] text-slate-500 mb-1">Parameters</div>
-      <div class="flex flex-wrap gap-1">
-        <span
-          v-for="(value, key) in Object.entries(data.parameters || {})"
-          :key="key"
-          class="px-1.5 py-0.5 rounded bg-slate-800/50 border border-slate-700/50 text-[10px] text-slate-300"
-        >
-          {{ key }}={{ String(value).slice(0, 12) }}
-        </span>
-      </div>
-    </div>
-
-    <div class="flex items-end gap-3 mt-2">
-      <div class="flex flex-col gap-1.5 flex-1">
-        <template
-          v-for="output in data.block?.outputs || []"
-          :key="output.id"
-        >
-          <div class="flex items-center gap-1.5 justify-end">
-            <span class="text-[10px] text-slate-400 truncate max-w-[120px]" :title="output.name">
-              {{ output.name }}
-            </span>
-            <div class="w-2 h-2 rounded-full bg-green-400"></div>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <div v-if="data.errors.length > 0" class="mt-2">
-      <template v-for="err in data.errors" :key="err.code">
-        <div class="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-1 rounded border border-red-500/20">
-          {{ err.message }}
+    <div v-if="visibleInputs.length || visibleOutputs.length" class="node-ports">
+      <div class="node-port-column">
+        <div v-for="input in visibleInputs" :key="input.id" class="node-port node-port--in">
+          <span class="node-port-dot node-port-dot--in" aria-hidden="true"></span>
+          <span class="node-port-name" :title="input.name">{{ input.name }}</span>
         </div>
-      </template>
+      </div>
+
+      <div class="node-port-column node-port-column--out">
+        <div v-for="output in visibleOutputs" :key="output.id" class="node-port node-port--out">
+          <span class="node-port-name" :title="output.name">{{ output.name }}</span>
+          <span class="node-port-dot node-port-dot--out" aria-hidden="true"></span>
+        </div>
+      </div>
     </div>
+
+    <p v-if="overflowCount > 0" class="node-ports-more">+{{ overflowCount }} more</p>
+
+    <div v-if="parameterChips.length" class="node-params">
+      <span
+        v-for="chip in parameterChips"
+        :key="chip.key"
+        class="node-param"
+        :title="`${chip.key}=${chip.value}`"
+      >
+        {{ chip.key }}={{ chip.value }}
+      </span>
+    </div>
+
+    <ul v-if="data.errors?.length" class="node-errors">
+      <li v-for="err in data.errors" :key="err.code">{{ err.message }}</li>
+    </ul>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { BlockKind } from '@/types/agent';
 
 const props = defineProps<{
   id: string;
   data: any;
 }>();
 
-const computedStyle = computed(() => {
-  const hasError = props.data.hasError;
-  return {
-    background: blockColor(props.data.block?.kind ?? 'utility'),
-    color: '#ffffff',
-    border: hasError
-      ? '2px solid #EF4444'
-      : '1px solid rgba(255,255,255,0.2)',
-  };
+const KIND_COLORS: Record<BlockKind, string> = {
+  trigger: '#10B981',
+  llm: '#3B82F6',
+  agent: '#8B5CF6',
+  tool: '#F59E0B',
+  control: '#EF4444',
+  output: '#10B981',
+  utility: '#6B7280',
+  subgraph: '#A855F7',
+};
+
+// Kind is an accent, not the surface: a saturated fill makes a graph of many
+// nodes hard to scan, and colour is better spent on state (error, selection).
+const accentColor = computed(
+  () => KIND_COLORS[(props.data.block?.kind as BlockKind) ?? 'utility'] ?? '#6B7280'
+);
+
+const kindLabel = computed(() => props.data.block?.kind ?? 'utility');
+
+const MAX_PORTS = 2;
+
+const visibleInputs = computed(() => (props.data.block?.inputs ?? []).slice(0, MAX_PORTS));
+const visibleOutputs = computed(() => (props.data.block?.outputs ?? []).slice(0, MAX_PORTS));
+
+const overflowCount = computed(() => {
+  const inputs = props.data.block?.inputs?.length ?? 0;
+  const outputs = props.data.block?.outputs?.length ?? 0;
+  return Math.max(0, inputs - MAX_PORTS) + Math.max(0, outputs - MAX_PORTS);
 });
 
-function blockColor(kind: string): string {
-  const colors: Record<string, string> = {
-    trigger: '#10B981',
-    llm: '#3B82F6',
-    agent: '#8B5CF6',
-    tool: '#F59E0B',
-    control: '#EF4444',
-    output: '#10B981',
-    utility: '#6B7280',
-    subgraph: '#A855F7',
-  };
-  return colors[kind] ?? '#6B7280';
-}
+const parameterChips = computed(() =>
+  Object.entries(props.data.parameters ?? {})
+    .slice(0, 3)
+    .map(([key, value]) => ({ key, value: String(value).slice(0, 12) }))
+);
 </script>
 
-<style scoped>
-</style>
+<style src="./nodeCard.css"></style>
