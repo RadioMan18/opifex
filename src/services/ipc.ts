@@ -20,6 +20,13 @@ import type {
   UpdateAgentInput,
 } from '@/types/agent';
 
+// Outside the desktop shell Tauri injects nothing, so every command rejects
+// with "Cannot read properties of undefined (reading 'invoke')". Startup code
+// checks this before touching the backend instead of showing that as an error.
+export function isDesktopShell(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 // Connector IPC types (snake_case to match Rust backend)
 interface CreateConnectorInput {
   name: string;

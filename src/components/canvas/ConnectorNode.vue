@@ -1,70 +1,86 @@
 <template>
-  <div class="node-card node-card--wide" :class="{ 'node-card--error': data.hasError }">
-    <span class="node-accent" :style="{ background: accentColor }" aria-hidden="true"></span>
+  <div class="node-shell">
+    <Handle
+      v-if="visibleInputs.length"
+      id="in"
+      type="target"
+      :position="Position.Left"
+      class="node-handle node-handle--in"
+    />
+    <Handle
+      v-if="visibleOutputs.length"
+      id="out"
+      type="source"
+      :position="Position.Right"
+      class="node-handle node-handle--out"
+    />
 
-    <header class="node-header">
-      <span class="node-kind-dot" :style="{ background: accentColor }" aria-hidden="true"></span>
-      <h4 class="node-title" :title="data.label">{{ data.label }}</h4>
-      <span
-        v-if="data.hasError"
-        class="node-error-dot"
-        title="Validation error"
-        aria-label="Validation error"
-      ></span>
-    </header>
+    <div class="node-card node-card--wide" :class="{ 'node-card--error': data.hasError }">
+      <span class="node-accent" :style="{ background: accentColor }" aria-hidden="true"></span>
 
-    <p class="node-subtitle">{{ data.block?.category ?? 'Connector' }}</p>
+      <header class="node-header">
+        <span class="node-kind-dot" :style="{ background: accentColor }" aria-hidden="true"></span>
+        <h4 class="node-title" :title="data.label">{{ data.label }}</h4>
+        <span
+          v-if="data.hasError"
+          class="node-error-dot"
+          title="Validation error"
+          aria-label="Validation error"
+        ></span>
+      </header>
 
-    <div v-if="visibleInputs.length || visibleOutputs.length" class="node-ports">
-      <div class="node-port-column">
-        <div v-for="input in visibleInputs" :key="input.id" class="node-port node-port--in">
-          <span class="node-port-dot node-port-dot--in" aria-hidden="true"></span>
-          <span class="node-port-name" :title="input.name">{{ input.name }}</span>
+      <p class="node-subtitle">{{ data.block?.category ?? 'Connector' }}</p>
+
+      <div v-if="visibleInputs.length || visibleOutputs.length" class="node-ports">
+        <div class="node-port-column">
+          <div v-for="input in visibleInputs" :key="input.id" class="node-port node-port--in">
+            <span class="node-port-name" :title="input.name">{{ input.name }}</span>
+          </div>
+        </div>
+
+        <div class="node-port-column node-port-column--out">
+          <div v-for="output in visibleOutputs" :key="output.id" class="node-port node-port--out">
+            <span class="node-port-name" :title="output.name">{{ output.name }}</span>
+          </div>
         </div>
       </div>
 
-      <div class="node-port-column node-port-column--out">
-        <div v-for="output in visibleOutputs" :key="output.id" class="node-port node-port--out">
-          <span class="node-port-name" :title="output.name">{{ output.name }}</span>
-          <span class="node-port-dot node-port-dot--out" aria-hidden="true"></span>
+      <p v-if="overflowCount > 0" class="node-ports-more">+{{ overflowCount }} more</p>
+
+      <label class="node-field">
+        <span class="node-field-label">Account</span>
+        <select
+          v-model="accountSelection"
+          class="node-select"
+          @change="updateAccountSelection(accountSelection)"
+        >
+          <option value="personal-default">Personal default</option>
+          <option value="specific-account">Specific account</option>
+          <option value="team-default">Team default</option>
+        </select>
+      </label>
+
+      <div class="node-section">
+        <div class="node-section-head">
+          <span class="node-section-title">Tool management</span>
+          <span class="node-status">
+            <span class="node-status-dot" :style="{ backgroundColor: tmColor }" aria-hidden="true"></span>
+            {{ tmLabel }}
+          </span>
         </div>
+        <button type="button" class="node-link-btn" @click="openToolManager">Configure</button>
       </div>
+
+      <ul v-if="data.errors?.length" class="node-errors">
+        <li v-for="err in data.errors" :key="err.code">{{ err.message }}</li>
+      </ul>
     </div>
-
-    <p v-if="overflowCount > 0" class="node-ports-more">+{{ overflowCount }} more</p>
-
-    <label class="node-field">
-      <span class="node-field-label">Account</span>
-      <select
-        v-model="accountSelection"
-        class="node-select"
-        @change="updateAccountSelection(accountSelection)"
-      >
-        <option value="personal-default">Personal default</option>
-        <option value="specific-account">Specific account</option>
-        <option value="team-default">Team default</option>
-      </select>
-    </label>
-
-    <div class="node-section">
-      <div class="node-section-head">
-        <span class="node-section-title">Tool management</span>
-        <span class="node-status">
-          <span class="node-status-dot" :style="{ backgroundColor: tmColor }" aria-hidden="true"></span>
-          {{ tmLabel }}
-        </span>
-      </div>
-      <button type="button" class="node-link-btn" @click="openToolManager">Configure</button>
-    </div>
-
-    <ul v-if="data.errors?.length" class="node-errors">
-      <li v-for="err in data.errors" :key="err.code">{{ err.message }}</li>
-    </ul>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { Handle, Position } from '@vue-flow/core';
 import type { BlockKind } from '@/types/agent';
 
 const props = defineProps<{

@@ -16,7 +16,7 @@ import PinPanel from '@/components/PinPanel.vue';
 import SkillEditor from '@/components/inspector/SkillEditor.vue';
 import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
 import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
-import { writeFile as ipcWriteFile } from '@/services/ipc';
+import { writeFile as ipcWriteFile, isDesktopShell } from '@/services/ipc';
 import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
 const store = useAgentStore();
@@ -262,7 +262,6 @@ const showPalette = ref(true);
 const showInspector = ref(true);
 
 onMounted(async () => {
-  init();
   applyDarkMode();
   setupKeyboardShortcuts();
   // The canvas resolves node labels/ports from the store, so the palette's
@@ -273,8 +272,18 @@ onMounted(async () => {
     graphStore.createGraph('Untitled Graph');
   }
   seedStarterGraph();
-  await loadTemplateSources();
-  await loadInstalledTemplates();
+
+  // Agents, models and templates all live in the Rust backend, which a browser
+  // tab cannot reach. Skipping the startup calls keeps the red "reading
+  // 'invoke'" banner out of a plain `npm run dev` session.
+  if (isDesktopShell()) {
+    init();
+    await loadTemplateSources();
+    await loadInstalledTemplates();
+  } else {
+    console.info('[app] Tauri backend unavailable; skipping agent/template startup');
+  }
+
   document.addEventListener('click', handleClickOutside);
 });
 

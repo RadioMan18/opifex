@@ -36,6 +36,7 @@
       tabindex="0"
     >
       <VueFlow
+        id="opifex-canvas"
         :nodes="flowNodes"
         :edges="flowEdges"
         pan-on-scroll
@@ -44,9 +45,11 @@
         @connect="onConnect"
         @node-drag="onNodeDrag"
         @node-click="onNodeClick"
+        @edge-click="onEdgeClick"
         @background-click="onBackgroundClick"
         :node-types="nodeTypes"
         :edge-types="edgeTypes"
+        :is-valid-connection="isValidConnection"
       >
         <!-- Drop zone overlay -->
         <div
@@ -369,13 +372,14 @@
 </style>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, markRaw } from 'vue';
 import {
   VueFlow,
   useVueFlow,
   type NodeDragEvent,
   type NodeMouseEvent,
   type Connection,
+  type EdgeMouseEvent,
 } from '@vue-flow/core';
 import type { BlockDefinition } from '@/types/agent';
 import { useGraphStore } from '@/stores/graphStore';
@@ -417,6 +421,8 @@ const flowNodes = computed(() => {
   });
 });
 
+const selectedEdgeId = ref<string | null>(null);
+
 const flowEdges = computed(() => {
   const g = graph.value;
   if (!g) return [];
@@ -424,6 +430,8 @@ const flowEdges = computed(() => {
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    type: 'stepEdge',
+    data: { selected: edge.id === selectedEdgeId.value },
   }));
 });
 
@@ -439,19 +447,30 @@ const {
   zoomTo: zoomToFn,
   viewport,
   screenToFlowCoordinate,
-} = useVueFlow();
+} = useVueFlow('opifex-canvas');
 
 const showCanvasMenu = ref(false);
 const zoomPercent = computed(() => Math.round((viewport.value?.zoom ?? 1) * 100));
 
 onMounted(() => {
   canvasContainer.value?.focus();
+  // Capture phase: Vue Flow clears its connection state on a bubbling
+  // document mouseup, which would run after this.
+  document.addEventListener('mousedown', onDocumentMouseDown, true);
+  document.addEventListener('mousemove', onDocumentMouseMove, true);
+  document.addEventListener('mouseup', onDocumentMouseUp, true);
   window.addEventListener('open-tool-manager', (e: Event) => {
     const customEvent = e as CustomEvent<{ nodeId: string; block: any }>;
     const { nodeId, block } = customEvent.detail;
     console.log('Open tool manager for node:', nodeId, block);
     // The tool manager panel will be shown by the parent app
   });
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onDocumentMouseDown, true);
+  document.removeEventListener('mousemove', onDocumentMouseMove, true);
+  document.removeEventListener('mouseup', onDocumentMouseUp, true);
 });
 
 // --- Functions (Logic Review: Minimal changes for type safety/modernity) ---
@@ -462,30 +481,89 @@ function onNodeDrag(event: NodeDragEvent) {
 }
 
 function onNodeClick(event: NodeMouseEvent) {
+  selectedEdgeId.value = null;
   store.selectNode(event.node.id);
 }
 
 function onBackgroundClick() {
+  selectedEdgeId.value = null;
   store.selectNode(null);
+}
+
+function onEdgeClick(event: EdgeMouseEvent) {
+  selectedEdgeId.value = event.edge.id;
+  store.selectNode(null);
+}
+
+function removeSelectedEdge() {
+  if (!selectedEdgeId.value) return;
+  store.removeEdge(selectedEdgeId.value);
+  selectedEdgeId.value = null;
+}
+
+// Vue Flow's `connect` event never reaches this component (the instance emits
+// are dropped in this setup), so a connection is completed from the two handles
+// the pointer visits: the one under mousedown and the one under mouseup. A
+// plain click never draws an edge, and `onConnect` still runs if the library
+// does emit — the store ignores duplicate edges.
+type HandleRef = { nodeId: string; type: 'source' | 'target' };
+
+let dragHandle: HandleRef | null = null;
+let dragMoved = false;
+
+function handleUnderPointer(event: MouseEvent): HTMLElement | null {
+  const under = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+  return (under?.closest('.vue-flow__handle') as HTMLElement | null) ?? null;
+}
+
+function handleRef(handle: HTMLElement): HandleRef | null {
+  const nodeId = handle.getAttribute('data-nodeid');
+  if (!nodeId) return null;
+  return { nodeId, type: handle.classList.contains('source') ? 'source' : 'target' };
+}
+
+function onDocumentMouseDown(event: MouseEvent) {
+  dragMoved = false;
+  const handle = handleUnderPointer(event);
+  dragHandle = handle ? handleRef(handle) : null;
+}
+
+function onDocumentMouseMove() {
+  if (dragHandle) dragMoved = true;
+}
+
+function onDocumentMouseUp(event: MouseEvent) {
+  const start = dragHandle;
+  dragHandle = null;
+  if (!start || !dragMoved) return;
+
+  const handle = handleUnderPointer(event);
+  if (!handle) return;
+
+  const end = handleRef(handle);
+  if (!end || end.type === start.type || end.nodeId === start.nodeId) return;
+
+  onConnect(
+    start.type === 'source'
+      ? { source: start.nodeId, target: end.nodeId, sourceHandle: null, targetHandle: null }
+      : { source: end.nodeId, target: start.nodeId, sourceHandle: null, targetHandle: null }
+  );
 }
 
 function onConnect(connection: Connection) {
   const sourceNode = graph.value?.nodes.find((n) => n.id === connection.source);
   const targetNode = graph.value?.nodes.find((n) => n.id === connection.target);
 
-  if (!sourceNode || !targetNode) return;
+  if (!sourceNode || !targetNode || sourceNode.id === targetNode.id) return;
 
   const sourceBlock = blocks.value.find((b) => b.id === sourceNode.blockId);
   const targetBlock = blocks.value.find((b) => b.id === targetNode.blockId);
 
   if (!sourceBlock || !targetBlock) return;
 
-  const result = CanvasAdapter.canConnectNodes(
-    { block: { outputs: sourceBlock.outputs } },
-    { block: { inputs: targetBlock.inputs } }
-  );
-  if (!result.allowed) {
-    console.warn(`Connection rejected: ${result.reason}`);
+  if (!isValidConnection(connection)) {
+    const result = CanvasAdapter.canConnectNodes({ block: sourceBlock }, { block: targetBlock });
+    console.warn(`[canvas] connection rejected: ${result.reason}`);
     return;
   }
 
@@ -493,6 +571,34 @@ function onConnect(connection: Connection) {
     source: connection.source,
     target: connection.target,
   });
+}
+
+// Run while a connection is dragged, so an invalid target is refused at the
+// pointer instead of silently creating an edge the graph cannot execute.
+function isValidConnection(connection: Connection): boolean {
+  const g = graph.value;
+  if (!g || !connection.source || !connection.target) return false;
+  if (connection.source === connection.target) return false;
+  // Vue Flow re-validates every stored edge through this same prop, so an edge
+  // that is already in the store must not be rejected as its own duplicate.
+  // Only a freshly dragged connection (which carries no id) is deduped here.
+  const storedEdgeId = (connection as Connection & { id?: string }).id;
+  if (
+    !storedEdgeId &&
+    g.edges.some((e) => e.source === connection.source && e.target === connection.target)
+  ) {
+    return false;
+  }
+
+  const sourceNode = g.nodes.find((n) => n.id === connection.source);
+  const targetNode = g.nodes.find((n) => n.id === connection.target);
+  if (!sourceNode || !targetNode) return false;
+
+  const sourceBlock = blocks.value.find((b) => b.id === sourceNode.blockId);
+  const targetBlock = blocks.value.find((b) => b.id === targetNode.blockId);
+  if (!sourceBlock || !targetBlock) return false;
+
+  return CanvasAdapter.canConnectNodes({ block: sourceBlock }, { block: targetBlock }).allowed;
 }
 
 function onDragEnter(event: DragEvent) {
@@ -556,6 +662,14 @@ async function onDrop(event: DragEvent) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
+  // Remove the selected edge: an edge you cannot undo is a trap once edges are
+  // drawable.
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId.value) {
+    event.preventDefault();
+    removeSelectedEdge();
+    return;
+  }
+
   // Resume button: Cmd/Ctrl + Shift + Enter
   if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
     event.preventDefault();

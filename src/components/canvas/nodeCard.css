@@ -112,19 +112,42 @@
   max-width: 100%;
 }
 
-.node-port-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+/*
+ * Connection anchors. The shell is the node's bounding box, so a handle can
+ * straddle the card border; the card clips its own overflow and would cut a
+ * handle in half.
+ */
+.node-shell {
+  position: relative;
+  width: max-content;
 }
 
-.node-port-dot--in {
+.node-shell .vue-flow__handle {
+  /* Handles straddle the border, and the card paints after them, so without a
+     stacking step the inner half of every anchor is covered by the card. */
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--surface-card);
+  border-radius: 50%;
+  background: var(--text-muted);
+  transform: translate(var(--handle-shift, -50%), -50%);
+  transition: transform 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.node-shell .node-handle--in {
+  --handle-shift: -50%;
   background: #3b82f6;
 }
 
-.node-port-dot--out {
+.node-shell .node-handle--out {
+  --handle-shift: 50%;
   background: #22c55e;
+}
+
+.node-shell .vue-flow__handle:hover {
+  transform: translate(var(--handle-shift, -50%), -50%) scale(1.35);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
 }
 
 .node-port-name {
