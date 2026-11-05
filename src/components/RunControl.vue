@@ -38,17 +38,29 @@
     <div v-if="runResult" class="mt-3 p-2.5 rounded bg-green-500/10 border border-green-500/20 text-green-400 text-xs">
       Run completed successfully
     </div>
+
+    <div
+      v-if="graphStore.runSummary"
+      class="mt-3 flex items-start justify-between gap-3 p-2.5 rounded bg-slate-800 border border-slate-700 text-slate-300 text-xs"
+    >
+      <span>{{ graphStore.runSummary }}</span>
+      <button class="text-slate-400 hover:text-slate-200" @click="clearPaint">Clear</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
 import { runAgentGraph } from '@/services/ipc';
+import { useGraphStore } from '@/stores/graphStore';
+import { deriveRunTrace, type RunOutcomeStatus } from '@/services/runTrace';
 
 interface Props {
   agentId: string | undefined;
 }
 const props = defineProps<Props>();
+
+const graphStore = useGraphStore();
 
 const isRunning = ref(false);
 const runStatus = ref<string | null>(null);
@@ -69,11 +81,30 @@ async function runAgent() {
     });
     runResult.value = run;
     runStatus.value = run.status;
+    paint(run.status === 'cancelled' ? 'cancelled' : 'succeeded');
   } catch (e: any) {
     runError.value = e.message || 'Unknown error';
+    runStatus.value = 'failed';
+    paint('failed', runError.value);
   } finally {
     isRunning.value = false;
   }
+}
+
+// The backend returns only the run header, so the canvas is painted from the
+// graph plus what the run told us (see deriveRunTrace).
+function paint(status: RunOutcomeStatus, error: string | null = null) {
+  const graph = graphStore.graph;
+  if (!graph) return;
+  const trace = deriveRunTrace(graph, { status, error }, { disabled: graphStore.disabledNodeIds });
+  graphStore.setRunVisual(trace.nodeStates, trace.edgeStates, trace.summary);
+}
+
+function clearPaint() {
+  graphStore.clearRunVisual();
+  runResult.value = null;
+  runError.value = null;
+  runStatus.value = null;
 }
 
 async function cancelRun() {

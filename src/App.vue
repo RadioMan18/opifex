@@ -16,6 +16,7 @@ import PinPanel from '@/components/PinPanel.vue';
 import SkillEditor from '@/components/inspector/SkillEditor.vue';
 import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
 import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
+import RunControl from '@/components/RunControl.vue';
 import { writeFile as ipcWriteFile, isDesktopShell } from '@/services/ipc';
 import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
@@ -700,6 +701,7 @@ async function setupKeyboardShortcuts() {
             </div>
           </header>
           <AgentCanvas />
+          <RunControl :agent-id="currentAgent?.id" />
         </section>
 
         <aside

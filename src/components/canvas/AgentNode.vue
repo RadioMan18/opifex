@@ -17,7 +17,14 @@
       class="node-handle node-handle--out"
     />
 
-    <div class="node-card" :class="{ 'node-card--error': data.hasError }">
+    <div
+      class="node-card"
+      :class="[
+        { 'node-card--error': data.hasError },
+        runClass,
+        { 'node-card--disabled': data.isDisabled, 'node-card--match': data.isMatch },
+      ]"
+    >
       <span class="node-accent" :style="{ background: accentColor }" aria-hidden="true"></span>
 
       <header class="node-header">
@@ -29,6 +36,21 @@
           title="Validation error"
           aria-label="Validation error"
         ></span>
+        <span
+          v-if="data.isDisabled"
+          class="node-off-badge"
+          title="Excluded from the run preview"
+        >
+          off
+        </span>
+        <span
+          v-if="data.runState"
+          class="node-run-badge"
+          :class="`node-run-badge--${data.runState}`"
+          :title="`Last run: ${data.runState}`"
+        >
+          {{ data.runState }}
+        </span>
       </header>
 
       <p class="node-subtitle">{{ kindLabel }}</p>
@@ -95,6 +117,12 @@ const accentColor = computed(
 );
 
 const kindLabel = computed(() => props.data.block?.kind ?? 'utility');
+
+// Run state is painted as a border plus a badge so a graph of many cards still
+// reads by kind; colour alone would compete with the accent strip.
+const runClass = computed(() =>
+  props.data.runState ? `node-card--run-${props.data.runState}` : null
+);
 
 const MAX_PORTS = 2;
 

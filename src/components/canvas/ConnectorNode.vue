@@ -15,7 +15,14 @@
       class="node-handle node-handle--out"
     />
 
-    <div class="node-card node-card--wide" :class="{ 'node-card--error': data.hasError }">
+    <div
+      class="node-card node-card--wide"
+      :class="[
+        { 'node-card--error': data.hasError },
+        runClass,
+        { 'node-card--disabled': data.isDisabled, 'node-card--match': data.isMatch },
+      ]"
+    >
       <span class="node-accent" :style="{ background: accentColor }" aria-hidden="true"></span>
 
       <header class="node-header">
@@ -27,6 +34,21 @@
           title="Validation error"
           aria-label="Validation error"
         ></span>
+        <span
+          v-if="data.isDisabled"
+          class="node-off-badge"
+          title="Excluded from the run preview"
+        >
+          off
+        </span>
+        <span
+          v-if="data.runState"
+          class="node-run-badge"
+          :class="`node-run-badge--${data.runState}`"
+          :title="`Last run: ${data.runState}`"
+        >
+          {{ data.runState }}
+        </span>
       </header>
 
       <p class="node-subtitle">{{ data.block?.category ?? 'Connector' }}</p>
@@ -101,6 +123,10 @@ const KIND_COLORS: Record<BlockKind, string> = {
 
 const accentColor = computed(
   () => KIND_COLORS[(props.data.block?.kind as BlockKind) ?? 'utility'] ?? '#6B7280'
+);
+
+const runClass = computed(() =>
+  props.data.runState ? `node-card--run-${props.data.runState}` : null
 );
 
 const MAX_PORTS = 2;

@@ -202,6 +202,90 @@
   border-radius: 4px;
 }
 
+/*
+ * Run overlay. State is spent on the border and a small badge rather than the
+ * accent strip, so a succeeded node still shows which kind of block it is.
+ */
+.node-card--run-succeeded {
+  border-color: rgba(16, 185, 129, 0.55);
+}
+
+.node-card--run-failed {
+  border-color: rgba(239, 68, 68, 0.65);
+}
+
+.node-card--run-running {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.node-card--run-skipped {
+  opacity: 0.55;
+}
+
+.node-run-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 5px;
+  font-size: 9px;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.node-run-badge--succeeded {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.node-run-badge--failed {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.node-run-badge--running {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.node-run-badge--skipped {
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+/* Excluded from the run preview, not deleted: dashed and muted, with an "off"
+   badge so it reads as switched off rather than merely faded. */
+.node-card--disabled {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+/* Find-in-graph match. */
+.node-card--match {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4);
+}
+
+.node-off-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 5px;
+  font-size: 9px;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
 /* Vue Flow marks the selected node on its wrapper. */
 .vue-flow__node.selected .node-card {
   border-color: var(--primary);
