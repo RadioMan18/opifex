@@ -38,7 +38,6 @@
       <VueFlow
         :nodes="flowNodes"
         :edges="flowEdges"
-        fit-view-on-init
         pan-on-scroll
         pan-on-drag
         zoom-on-pan
@@ -370,7 +369,7 @@
 </style>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, markRaw } from 'vue';
 import {
   VueFlow,
   useVueFlow,
@@ -572,8 +571,12 @@ function onKeyDown(event: KeyboardEvent) {
 
 // --- Controls & Utilities ---
 
-const nodeTypes: any = { agentNode: AgentNode, connectorNode: ConnectorNode };
-const edgeTypes: any = { stepEdge: StepEdge };
+// Vue Flow keeps these maps in reactive state, so a plain object gets proxied
+// and Vue then warns about reactive components on every node render. Excluding
+// the maps from reactivity keeps the components raw and drops a proxy hop from
+// every prop read.
+const nodeTypes: any = markRaw({ agentNode: AgentNode, connectorNode: ConnectorNode });
+const edgeTypes: any = markRaw({ stepEdge: StepEdge });
 
 
 function autoFormat() {

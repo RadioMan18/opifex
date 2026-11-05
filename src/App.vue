@@ -272,6 +272,7 @@ onMounted(async () => {
   if (!graphStore.graph) {
     graphStore.createGraph('Untitled Graph');
   }
+  seedStarterGraph();
   await loadTemplateSources();
   await loadInstalledTemplates();
   document.addEventListener('click', handleClickOutside);
@@ -280,6 +281,24 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside);
 });
+
+// A blank canvas gives no clue where to start, and the graph is invalid until
+// its trigger exists, so a new graph opens with the trigger already placed.
+function seedStarterGraph() {
+  if ((graphStore.graph?.nodes.length ?? 0) > 0) return;
+
+  const trigger = defaultBlocks.value.find((block) => block.kind === 'trigger');
+  if (!trigger) return;
+
+  graphStore.addNode({
+    blockId: trigger.id,
+    blockVersion: trigger.version,
+    position: { x: 120, y: 80 },
+    parameters: {},
+    subGraph: undefined,
+    isCollapsed: false,
+  });
+}
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value;
