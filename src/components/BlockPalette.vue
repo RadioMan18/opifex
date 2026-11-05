@@ -115,6 +115,9 @@ function blockColor(kind: BlockKind): string {
 
 function onDragStart(event: DragEvent, block: BlockDefinition) {
   event.dataTransfer?.setData('application/opifex-block', JSON.stringify(block));
+  // Standard formats survive the OS drag pipeline more reliably than a custom
+  // one, so carry the id as plain text too.
+  event.dataTransfer?.setData('text/plain', block.id);
   emit('block-drag-start', block);
 }
 

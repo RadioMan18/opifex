@@ -1,12 +1,5 @@
 <template>
   <div class="agent-canvas">
-    <div class="canvas-header">
-      <div class="canvas-header-left">
-        <span class="canvas-header-title">Agent Canvas</span>
-        <span v-if="isInSubGraph" class="subgraph-badge">Sub-graph</span>
-      </div>
-    </div>
-
     <div
       v-if="breadcrumbs.length > 0"
       class="canvas-breadcrumbs"
@@ -126,18 +119,6 @@
       </div>
     </div>
 
-    <!-- Right sidebar: Pin panel -->
-    <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto min-h-0">
-      <PinPanel
-        :agent-id="selectedAgentId"
-        :node-id="selectedNodeId"
-        :port-id="selectedPortId"
-        :value="selectedPortValue"
-      />
-      <SkillEditor :agent-id="selectedAgentId" />
-      <KnowledgeSourceEditor :agent-id="selectedAgentId" />
-      <TriggerEditor :agent-id="selectedAgentId" />
-    </div>
   </div>
 </template>
 
@@ -146,6 +127,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  flex: 1;
+  min-height: 0;
   background: var(--surface-base);
   position: relative;
 }
@@ -234,6 +217,7 @@
 
 .canvas-main-area {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -273,10 +257,6 @@ import { CanvasAdapter } from '@/services/canvasAdapter';
 import AgentNode from '@/components/canvas/AgentNode.vue';
 import ConnectorNode from '@/components/canvas/ConnectorNode.vue';
 import StepEdge from '@/components/canvas/StepEdge.vue';
-import PinPanel from '@/components/PinPanel.vue';
-import SkillEditor from '@/components/inspector/SkillEditor.vue';
-import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
-import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 
 const store = useGraphStore();
 
@@ -284,11 +264,6 @@ const store = useGraphStore();
 const graph = computed(() => store.graph);
 const blocks = computed(() => store.blocks);
 const breadcrumbs = computed(() => store.breadcrumbs);
-const isInSubGraph = computed(() => store.isInSubGraph);
-const selectedAgentId = ref<string | undefined>(undefined);
-const selectedNodeId = ref<string | undefined>(undefined);
-const selectedPortId = ref<string | undefined>(undefined);
-const selectedPortValue = ref<any>(undefined);
 
 const flowNodes = computed(() => {
   const g = graph.value;
@@ -362,13 +337,6 @@ function onNodeDrag(event: NodeDragEvent) {
 
 function onNodeClick(event: NodeMouseEvent) {
   store.selectNode(event.node.id);
-  selectedNodeId.value = event.node.id;
-  // Default to first output port if available
-  const node = graph.value?.nodes.find((n) => n.id === event.node.id);
-  const block = blocks.value.find((b) => b.id === node?.blockId);
-  const firstOutput = block?.outputs?.[0];
-  selectedPortId.value = firstOutput?.id ?? undefined;
-  selectedPortValue.value = undefined;
 }
 
 function onBackgroundClick() {
@@ -416,14 +384,34 @@ function onDragLeave() {
   dragOver.value = false;
 }
 
+function resolveDraggedBlock(event: DragEvent): BlockDefinition | null {
+  const raw = event.dataTransfer?.getData('application/opifex-block') ?? '';
+  if (raw) {
+    try {
+      return JSON.parse(raw) as BlockDefinition;
+    } catch {
+      // fall through to the lookups below
+    }
+  }
+
+  // WebView2 does not reliably return a custom drag format on drop, so fall
+  // back to the plain-text id and finally to what the palette reported.
+  const id = event.dataTransfer?.getData('text/plain') ?? '';
+  return blocks.value.find((b) => b.id === id) ?? store.draggingBlock;
+}
+
 async function onDrop(event: DragEvent) {
   event.preventDefault();
   dragOver.value = false;
 
-  const data = event.dataTransfer?.getData('application/opifex-block');
-  if (!data || !canvasContainer.value) return;
+  const block = resolveDraggedBlock(event);
+  if (!block || !canvasContainer.value) {
+    console.warn('[canvas] drop ignored: no block payload', {
+      types: event.dataTransfer ? Array.from(event.dataTransfer.types) : [],
+    });
+    return;
+  }
 
-  const block: BlockDefinition = JSON.parse(data);
   // Drop coordinates are screen-space; Vue Flow positions nodes in flow-space,
   // so the current pan/zoom must be applied or the node lands off-screen.
   const position = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
@@ -436,6 +424,9 @@ async function onDrop(event: DragEvent) {
     subGraph: undefined,
     isCollapsed: false,
   });
+  store.setDraggingBlock(null);
+
+  console.debug('[canvas] dropped', block.id, position, 'nodes:', graph.value?.nodes.length);
 }
 
 function onKeyDown(event: KeyboardEvent) {

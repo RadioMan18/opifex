@@ -12,6 +12,10 @@ import AgentCanvas from '@/components/AgentCanvas.vue';
 import BlockPalette from '@/components/BlockPalette.vue';
 import NodeInspector from '@/components/NodeInspector.vue';
 import AgentToolDrawer from '@/components/inspector/AgentToolDrawer.vue';
+import PinPanel from '@/components/PinPanel.vue';
+import SkillEditor from '@/components/inspector/SkillEditor.vue';
+import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
+import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 import { writeFile as ipcWriteFile } from '@/services/ipc';
 import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
@@ -239,6 +243,24 @@ const defaultBlocks = ref<BlockDefinition[]>([
 
 const selectedCanvasNodeId = computed(() => graphStore.selectedNodeId ?? undefined);
 
+// One rail, one place to look: the canvas owns the workspace, and everything
+// that configures a node or an agent lives in a tab here instead of stacking
+// panels underneath the canvas.
+type InspectorTab = 'node' | 'tools' | 'pins' | 'skills' | 'knowledge' | 'triggers';
+const inspectorTabs: Array<{ id: InspectorTab; label: string }> = [
+  { id: 'node', label: 'Node' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'pins', label: 'Pins' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'triggers', label: 'Triggers' },
+];
+const inspectorTab = ref<InspectorTab>('node');
+
+// Both rails can be dismissed so the canvas can use the full width.
+const showPalette = ref(true);
+const showInspector = ref(true);
+
 onMounted(async () => {
   init();
   applyDarkMode();
@@ -370,8 +392,9 @@ async function handleNewConversation() {
 
 function onBlockDragStart(block: BlockDefinition) {
   // Block drag start is handled by BlockPalette's native drag events.
-  // The canvas drop handler receives the block via dataTransfer.
-  console.log('Block drag start:', block.id);
+  // The canvas drop handler receives the block via dataTransfer, with this as
+  // a fallback in case the webview drops the payload.
+  graphStore.setDraggingBlock(block);
 }
 
 async function handleCreateAgent() {
@@ -613,7 +636,7 @@ async function setupKeyboardShortcuts() {
 
     <main class="panes" role="main">
       <div v-if="viewMode === 'canvas'" class="canvas-layout">
-        <aside class="canvas-palette" role="complementary" aria-label="Block palette">
+        <aside v-show="showPalette" class="canvas-palette" role="complementary" aria-label="Block palette">
           <BlockPalette :blocks="defaultBlocks" @block-drag-start="onBlockDragStart" />
         </aside>
 
@@ -621,6 +644,24 @@ async function setupKeyboardShortcuts() {
           <header class="canvas-toolbar">
             <span class="canvas-title">Agent Canvas • Design your agent's logic and tools</span>
             <div class="canvas-toolbar-actions">
+              <button
+                class="btn-secondary"
+                :class="{ 'is-on': showPalette }"
+                :aria-pressed="showPalette"
+                @click="showPalette = !showPalette"
+                title="Show or hide the block palette"
+              >
+                Palette
+              </button>
+              <button
+                class="btn-secondary"
+                :class="{ 'is-on': showInspector }"
+                :aria-pressed="showInspector"
+                @click="showInspector = !showInspector"
+                title="Show or hide the inspector"
+              >
+                Inspector
+              </button>
               <button
                 class="btn-secondary"
                 @click="viewMode = 'oppy'"
@@ -633,9 +674,52 @@ async function setupKeyboardShortcuts() {
           <AgentCanvas />
         </section>
 
-        <aside class="canvas-inspector" role="complementary" aria-label="Node inspector">
-          <NodeInspector :nodeId="selectedCanvasNodeId" />
-          <AgentToolDrawer :nodeId="selectedCanvasNodeId" />
+        <aside
+          v-show="showInspector"
+          class="canvas-inspector"
+          role="complementary"
+          aria-label="Inspector"
+        >
+          <div class="inspector-tabs" role="tablist" aria-label="Inspector panels">
+            <button
+              v-for="tab in inspectorTabs"
+              :key="tab.id"
+              class="inspector-tab"
+              :class="{ 'is-active': inspectorTab === tab.id }"
+              role="tab"
+              :aria-selected="inspectorTab === tab.id"
+              @click="inspectorTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <div class="inspector-body">
+            <NodeInspector v-if="inspectorTab === 'node'" :nodeId="selectedCanvasNodeId" />
+            <AgentToolDrawer
+              v-else-if="inspectorTab === 'tools'"
+              :nodeId="selectedCanvasNodeId"
+            />
+            <PinPanel
+              v-else-if="inspectorTab === 'pins'"
+              :agent-id="currentAgent?.id"
+              :node-id="selectedCanvasNodeId"
+              :port-id="undefined"
+              :value="undefined"
+            />
+            <SkillEditor
+              v-else-if="inspectorTab === 'skills'"
+              :agent-id="currentAgent?.id"
+            />
+            <KnowledgeSourceEditor
+              v-else-if="inspectorTab === 'knowledge'"
+              :agent-id="currentAgent?.id"
+            />
+            <TriggerEditor
+              v-else-if="inspectorTab === 'triggers'"
+              :agent-id="currentAgent?.id"
+            />
+          </div>
         </aside>
       </div>
 
@@ -1342,6 +1426,7 @@ body {
 
 /* Canvas mode layout */
 .canvas-layout {
+  position: relative;
   display: flex;
   flex: 1;
   overflow: hidden;
@@ -1360,6 +1445,7 @@ body {
 
 .canvas-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1396,6 +1482,103 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.inspector-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.inspector-tab {
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.inspector-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.inspector-tab.is-active {
+  color: var(--primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-toolbar-actions .btn-secondary.is-on {
+  color: var(--primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.canvas-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-toolbar-actions {
+  flex-shrink: 0;
+}
+
+/* In a narrow window the rails float over the canvas instead of squeezing it.
+   The default Tauri window is 800x600, where two fixed rails would leave the
+   canvas with almost no width. */
+@media (max-width: 1240px) {
+  .canvas-palette,
+  .canvas-inspector {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
+  }
+
+  .canvas-palette {
+    left: 0;
+  }
+
+  .canvas-inspector {
+    right: 0;
+  }
+
+  .canvas-main {
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .canvas-palette {
+    width: 260px;
+  }
+
+  .canvas-inspector {
+    width: 300px;
+  }
+
+  .canvas-title {
+    display: none;
+  }
 }
 
 .btn-active {

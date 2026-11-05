@@ -16,6 +16,11 @@ export const useGraphStore = defineStore('graph', () => {
   // Available block definitions (from backend/library)
   const blocks = ref<BlockDefinition[]>([]);
 
+  // Block currently being dragged out of the palette. WebView2 does not always
+  // hand the drop event its custom drag payload, so the canvas keeps this as a
+  // fallback source of the block being dragged.
+  const draggingBlock = ref<BlockDefinition | null>(null);
+
   // Currently selected node on canvas
   const selectedNodeId = ref<string | null>(null);
 
@@ -47,6 +52,11 @@ export const useGraphStore = defineStore('graph', () => {
     };
     selectedNodeId.value = null;
     breadcrumbs.value = [];
+  }
+
+  // Track the block being dragged from the palette
+  function setDraggingBlock(block: BlockDefinition | null) {
+    draggingBlock.value = block;
   }
 
   // Add a node to the graph
@@ -260,6 +270,7 @@ export const useGraphStore = defineStore('graph', () => {
   return {
     graph,
     blocks,
+    draggingBlock,
     selectedNodeId,
     validationResult,
     breadcrumbs,
@@ -267,6 +278,7 @@ export const useGraphStore = defineStore('graph', () => {
     errorCount,
     setGraph,
     createGraph,
+    setDraggingBlock,
     addNode,
     removeNode,
     updateNodePosition,
