@@ -243,6 +243,13 @@ onMounted(async () => {
   init();
   applyDarkMode();
   setupKeyboardShortcuts();
+  // The canvas resolves node labels/ports from the store, so the palette's
+  // block definitions must be registered there before a drop can render one.
+  graphStore.blocks = defaultBlocks.value;
+  // Dropping a block is a no-op against a null graph; ensure one exists.
+  if (!graphStore.graph) {
+    graphStore.createGraph('Untitled Graph');
+  }
   await loadTemplateSources();
   await loadInstalledTemplates();
   document.addEventListener('click', handleClickOutside);

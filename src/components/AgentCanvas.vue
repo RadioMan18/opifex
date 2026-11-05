@@ -53,10 +53,6 @@
         @node-drag="onNodeDrag"
         @node-click="onNodeClick"
         @background-click="onBackgroundClick"
-        @dragover.prevent="onDragOver"
-        @dragenter="onDragEnter"
-        @dragleave="onDragLeave"
-        @drop="onDrop"
         :node-types="nodeTypes"
         :edge-types="edgeTypes"
       >
@@ -340,7 +336,12 @@ const dragOver = ref(false);
 const snapToGrid = ref(false);
 
 // Vue Flow instance methods (No change needed here)
-const { fitView: fitViewFn, zoomIn: zoomInFn, zoomOut: zoomOutFn } = useVueFlow();
+const {
+  fitView: fitViewFn,
+  zoomIn: zoomInFn,
+  zoomOut: zoomOutFn,
+  screenToFlowCoordinate,
+} = useVueFlow();
 
 onMounted(() => {
   canvasContainer.value?.focus();
@@ -423,14 +424,14 @@ async function onDrop(event: DragEvent) {
   if (!data || !canvasContainer.value) return;
 
   const block: BlockDefinition = JSON.parse(data);
-  const rect = canvasContainer.value.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  // Drop coordinates are screen-space; Vue Flow positions nodes in flow-space,
+  // so the current pan/zoom must be applied or the node lands off-screen.
+  const position = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
 
   store.addNode({
     blockId: block.id,
     blockVersion: block.version,
-    position: { x, y },
+    position,
     parameters: {},
     subGraph: undefined,
     isCollapsed: false,

@@ -71,7 +71,7 @@ describe('BlockPalette', () => {
       props: { blocks },
     });
 
-    const blockEl = wrapper.find('.cursor-pointer');
+    const blockEl = wrapper.find('.block-item');
     await blockEl.trigger('dragstart', {
       dataTransfer: {
         setData: () => {},
