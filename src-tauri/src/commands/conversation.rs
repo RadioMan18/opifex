@@ -167,3 +167,25 @@ pub fn load_messages(
 
     Ok(messages)
 }
+
+/// Deletes every intake transcript belonging to an agent. The agent and its plan
+/// version history are untouched.
+#[tauri::command]
+pub fn clear_history(
+    state: State<'_, DbState>,
+    agent_id: String,
+) -> Result<usize, String> {
+    let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+
+    let removed = conn
+        .execute(
+            "DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE agent_id = ?1)",
+            params![agent_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+    conn.execute("DELETE FROM conversations WHERE agent_id = ?1", params![agent_id])
+        .map_err(|e| e.to_string())?;
+
+    Ok(removed)
+}

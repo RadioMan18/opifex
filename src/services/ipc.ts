@@ -87,7 +87,6 @@ export type StreamCleanup = () => void;
 export async function ollamaChatStream(
   provider: string,
   model: string,
-  apiKey: string | null,
   messages: OllamaMessage[],
   callbacks: OllamaStreamCallbacks,
 ): Promise<StreamCleanup> {
@@ -141,7 +140,7 @@ export async function ollamaChatStream(
   }
 
   // Trigger the Tauri command in the background; do not block returning cleanup
-  invoke('ollama_chat_stream', { provider, model, apiKey, messages }).catch((err: any) => {
+  invoke('ollama_chat_stream', { provider, model, messages }).catch((err: any) => {
     if (!isDone) {
       cleanup();
       callbacks.onError(err?.message || String(err));
@@ -167,8 +166,8 @@ export async function ollamaSetProvider(provider: string): Promise<void> {
   return invoke('ollama_set_provider', { provider });
 }
 
-export async function ollamaGetApiKey(provider: string): Promise<string | null> {
-  return invoke('ollama_get_api_key', { provider });
+export async function ollamaHasApiKey(provider: string): Promise<boolean> {
+  return invoke('ollama_has_api_key', { provider });
 }
 
 export async function ollamaSetApiKey(provider: string, apiKey: string): Promise<void> {
@@ -199,6 +198,10 @@ export async function loadMessages(conversationId: string): Promise<DbMessage[]>
   return invoke('load_messages', { conversationId });
 }
 
+export async function clearHistory(agentId: string): Promise<number> {
+  return invoke('clear_history', { agentId });
+}
+
 export async function savePlanVersion(input: SavePlanVersionInput): Promise<PlanVersion> {
   return invoke('save_plan_version', { input });
 }
@@ -211,8 +214,13 @@ export async function restorePlanVersion(versionId: string): Promise<AgentPlan> 
   return invoke('restore_plan_version', { versionId });
 }
 
-export async function writeFile(path: string, content: string): Promise<void> {
-  return invoke('write_file', { path, content });
+/** Saves text to a path the user picks in a native dialog; no path crosses IPC. */
+export async function saveTextFile(defaultName: string, contents: string): Promise<string | null> {
+  return invoke('save_text_file', { defaultName, contents });
+}
+
+export async function loadTextFile(): Promise<string | null> {
+  return invoke('load_text_file');
 }
 
 export async function addTemplateSource(input: { name: string; url: string }): Promise<TemplateSource> {

@@ -3,12 +3,80 @@
   "name": "Research Agent",
   "description": "Conducts web research and produces structured reports with citations on any business topic.",
   "specJson": {
+    "version": 2,
     "goal": "Research a topic thoroughly and produce a structured, cited report",
-    "steps": ["Clarify research scope and questions", "Perform web searches across multiple sources", "Extract and verify key facts", "Synthesize findings into a structured report", "Add citations and source links"],
-    "tools": ["web_search", "document_summarizer", "citation_formatter"],
-    "knowledgeSources": [],
-    "triggers": ["research_request", "market_analysis_request", "competitor_research_request"],
-    "outputs": ["research_report", "source_citations", "key_findings_summary"]
+    "triggers": [
+      { "name": "research_request", "kind": "event", "description": "Someone asks for research on a topic" },
+      { "name": "market_analysis_request", "kind": "event", "description": "Someone asks for market or competitor analysis" }
+    ],
+    "results": [
+      { "name": "research_brief", "terminal": false, "description": "Scoped questions, time horizon, and constraints" },
+      { "name": "source_corpus", "terminal": false, "description": "Retrieved sources with raw extracts" },
+      { "name": "verified_findings", "terminal": false, "description": "Claims corroborated by at least two sources" },
+      { "name": "source_citations", "terminal": true, "schema": "citation[]{title,url,published_at}", "description": "Citation list for every retained claim" },
+      { "name": "research_report", "terminal": true, "schema": "markdown_table[Rank,Tool,License,Stars,RedditScore,Summary]", "description": "Final structured report" }
+    ],
+    "chains": [
+      {
+        "id": "rs-1",
+        "trigger": "research_request",
+        "capability": "clarify_scope",
+        "inputs": [{ "port": "request", "from": "trigger", "ref": "research_request" }],
+        "result": "research_brief",
+        "decision": "Ask at most two questions. Default the time horizon to the past 12 months when unspecified.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rs-2",
+        "trigger": "market_analysis_request",
+        "capability": "clarify_scope",
+        "inputs": [{ "port": "request", "from": "trigger", "ref": "market_analysis_request" }],
+        "result": "research_brief",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rs-3",
+        "trigger": "research_brief",
+        "capability": "web_search",
+        "inputs": [
+          { "port": "queries", "from": "result", "ref": "research_brief" },
+          { "port": "sources", "from": "parameter", "value": "github, reddit, vendor documentation" }
+        ],
+        "result": "source_corpus",
+        "gate": { "mode": "auto", "onFailure": "retry", "maxRetries": 3 }
+      },
+      {
+        "id": "rs-4",
+        "trigger": "source_corpus",
+        "capability": "verify_facts",
+        "inputs": [{ "port": "sources", "from": "result", "ref": "source_corpus" }],
+        "result": "verified_findings",
+        "decision": "Drop any claim that is not corroborated by at least two independent sources.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rs-5",
+        "trigger": "verified_findings",
+        "capability": "citation_formatter",
+        "inputs": [{ "port": "finding", "from": "result", "ref": "verified_findings" }],
+        "result": "source_citations",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rs-6",
+        "trigger": "source_citations",
+        "capability": "document_summarizer",
+        "inputs": [
+          { "port": "findings", "from": "result", "ref": "verified_findings" },
+          { "port": "citations", "from": "result", "ref": "source_citations" }
+        ],
+        "result": "research_report",
+        "decision": "Cite only findings present in verified_findings. Never invent a source.",
+        "gate": { "mode": "auto", "onFailure": "escalate" }
+      }
+    ],
+    "tools": ["clarify_scope", "web_search", "verify_facts", "citation_formatter", "document_summarizer"],
+    "knowledgeSources": []
   },
   "model": "ollama",
   "isStarter": true,

@@ -3,12 +3,77 @@
   "name": "Customer Support Agent",
   "description": "Answers customer inquiries and handles support tickets, grounded in company FAQ and product documentation.",
   "specJson": {
+    "version": 2,
     "goal": "Provide helpful, accurate customer support by resolving inquiries and managing support tickets",
-    "steps": ["Greet customer", "Understand issue", "Search knowledge base for relevant answers", "Provide solution or escalate", "Follow up and confirm resolution"],
-    "tools": ["knowledge_base", "ticket_system", "customer_database"],
-    "knowledgeSources": ["faq.md", "product_docs.pdf", "support_runbooks.md"],
-    "triggers": ["customer_message", "new_support_ticket", "escalation_request"],
-    "outputs": ["customer_response", "support_ticket", "escalation_notice"]
+    "triggers": [
+      { "name": "customer_message", "kind": "event", "description": "A customer sends a message in any support channel" },
+      { "name": "new_support_ticket", "kind": "event", "description": "A ticket is created in the ticket system" },
+      { "name": "escalation_request", "kind": "event", "description": "A human or the customer asks for escalation" }
+    ],
+    "results": [
+      { "name": "issue_summary", "terminal": false, "description": "Structured restatement of the customer problem" },
+      { "name": "candidate_answers", "terminal": false, "description": "Ranked knowledge base passages" },
+      { "name": "customer_response", "terminal": true, "schema": "markdown", "description": "Reply sent to the customer" },
+      { "name": "support_ticket", "terminal": true, "schema": "ticket{subject,body,priority}", "description": "Ticket opened for follow-up" },
+      { "name": "escalation_notice", "terminal": true, "schema": "notification", "description": "Escalation sent to the on-call owner" }
+    ],
+    "chains": [
+      {
+        "id": "cs-1",
+        "trigger": "customer_message",
+        "capability": "understand_issue",
+        "inputs": [{ "port": "message", "from": "trigger", "ref": "customer_message" }],
+        "result": "issue_summary",
+        "decision": "Restate the problem in one paragraph. Ask for missing details instead of assuming them.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cs-2",
+        "trigger": "issue_summary",
+        "capability": "knowledge_base",
+        "inputs": [
+          { "port": "query", "from": "result", "ref": "issue_summary" },
+          { "port": "corpus", "from": "parameter", "value": "faq.md, product_docs.pdf, support_runbooks.md" }
+        ],
+        "result": "candidate_answers",
+        "decision": "Return passages only. Never paraphrase policy that is not in the retrieved text.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cs-3",
+        "trigger": "candidate_answers",
+        "capability": "customer_database",
+        "inputs": [
+          { "port": "answer", "from": "result", "ref": "candidate_answers" },
+          { "port": "customer", "from": "trigger", "ref": "customer_message" }
+        ],
+        "result": "customer_response",
+        "decision": "State only facts present in candidate_answers. If nothing relevant was retrieved, escalate rather than improvise.",
+        "gate": { "mode": "auto", "onFailure": "escalate" }
+      },
+      {
+        "id": "cs-4",
+        "trigger": "escalation_request",
+        "capability": "ticket_system",
+        "inputs": [
+          { "port": "summary", "from": "result", "ref": "issue_summary" },
+          { "port": "reply", "from": "result", "ref": "customer_response" }
+        ],
+        "result": "support_ticket",
+        "decision": "Set priority from the customer tier; never close an existing ticket.",
+        "gate": { "mode": "approve", "approver": "support_lead", "onFailure": "stop" }
+      },
+      {
+        "id": "cs-5",
+        "trigger": "new_support_ticket",
+        "capability": "ticket_system",
+        "inputs": [{ "port": "ticket", "from": "trigger", "ref": "new_support_ticket" }],
+        "result": "escalation_notice",
+        "gate": { "mode": "auto", "onFailure": "retry", "maxRetries": 2 }
+      }
+    ],
+    "tools": ["understand_issue", "knowledge_base", "customer_database", "ticket_system"],
+    "knowledgeSources": ["faq.md", "product_docs.pdf", "support_runbooks.md"]
   },
   "model": "ollama",
   "isStarter": true,

@@ -12,6 +12,7 @@ import type {
   TemplateEntry,
   TemplateSource,
 } from '@/types/agent';
+import { emptyPlan, migratePlan, needsPlanMigration } from '@/lib/planSchema';
 import {
   createAgent as ipcCreateAgent,
   getAgent as ipcGetAgent,
@@ -31,10 +32,12 @@ import {
   ollamaSetDefaultModel as ipcOllamaSetDefaultModel,
   ollamaGetProvider as ipcOllamaGetProvider,
   ollamaSetProvider as ipcOllamaSetProvider,
-  ollamaGetApiKey as ipcOllamaGetApiKey,
+  ollamaHasApiKey as ipcOllamaHasApiKey,
   ollamaSetApiKey as ipcOllamaSetApiKey,
   createConversation as ipcCreateConversation,
   listConversations as ipcListConversations,
+  loadMessages as ipcLoadMessages,
+  clearHistory as ipcClearHistory,
   saveMessage as ipcSaveMessage,
   savePlanVersion as ipcSavePlanVersion,
   listPlanVersions as ipcListPlanVersions,
@@ -53,11 +56,17 @@ interface AgentState {
   messages: Message[];
   conversations: Conversation[];
   currentConversationId: string | null;
+  /** Read-only transcript of a past intake, or null when viewing the live conversation. */
+  transcript: Message[] | null;
+  transcriptConversationId: string | null;
+  transcriptTitle: string;
   planVersions: PlanVersion[];
   models: OllamaModel[];
   defaultModel: string | null;
   provider: string | null;
   apiKeys: Record<string, string>;
+  /** Whether each provider has a key stored server-side; the key itself never lands here. */
+  keysConfigured: Record<string, boolean>;
   loading: boolean;
   streaming: boolean;
   streamingMsgId: string | null;
@@ -78,11 +87,15 @@ const state = reactive<AgentState>({
   messages: [],
   conversations: [],
   currentConversationId: null,
+  transcript: null,
+  transcriptConversationId: null,
+  transcriptTitle: '',
   planVersions: [],
   models: [],
   defaultModel: null,
   provider: null,
   apiKeys: {},
+  keysConfigured: {},
   loading: false,
   streaming: false,
   streamingMsgId: null,
@@ -102,14 +115,6 @@ let streamingMessageId: string | null = null;
 let failedAssistantMessageId: string | null = null;
 let streamingContent = '';
 let streamCleanup: (() => void) | null = null;
-
-function parseStringArray(value: unknown): (string | { action: string })[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || !value.every((item): item is string | { action: string } => typeof item === 'string' || (typeof item === 'object' && item !== null && 'action' in item))) {
-    throw new Error('Oppy returned an invalid agent plan');
-  }
-  return value;
-}
 
 function repairRepeatedOutput(content: string): string {
   return content
@@ -203,6 +208,7 @@ export function useAgentStore() {
       await ipcSeedStarterAgents();
       await ipcLoadUserAgents();
       await loadAgents();
+      await migrateStoredPlans();
       await loadModels();
       await loadDefaultModel();
       await loadProvider();
@@ -219,6 +225,29 @@ export function useAgentStore() {
       state.agents = await ipcListAgents(true);
     } catch (err: any) {
       state.error = err?.message || String(err);
+    }
+  }
+
+  /**
+   * Lazy schema migration. Starter agents seeded before schema v2 still carry the
+   * flat `steps` / `triggers` / `outputs` shape in SQLite, so rewrite them once on
+   * start. Plans produced later are normalised as they arrive.
+   */
+  async function migrateStoredPlans() {
+    for (const item of state.agents) {
+      try {
+        const agent = await ipcGetAgent(item.id);
+        if (!agent || !agent.specJson || !needsPlanMigration(agent.specJson)) continue;
+        await ipcUpdateAgent(agent.id, {
+          name: null,
+          description: null,
+          specJson: migratePlan(agent.specJson),
+          model: null,
+          isStarter: null,
+        });
+      } catch (err) {
+        console.warn(`Skipped plan migration for ${item.name}`, err);
+      }
     }
   }
 
@@ -268,19 +297,23 @@ export function useAgentStore() {
     }
   }
 
-  async function getApiKey(provider: string): Promise<string | null> {
-    try {
-      return await ipcOllamaGetApiKey(provider);
-    } catch (err: any) {
-      state.error = err?.message || String(err);
-      return null;
+  /** Asks which providers have a key configured. The key itself stays in Rust. */
+  async function loadApiKeyStatus() {
+    for (const provider of ['openai', 'anthropic']) {
+      try {
+        state.keysConfigured[provider] = await ipcOllamaHasApiKey(provider);
+      } catch (err: any) {
+        state.error = err?.message || String(err);
+      }
     }
   }
 
   async function setApiKey(provider: string, apiKey: string) {
     try {
       await ipcOllamaSetApiKey(provider, apiKey);
-      state.apiKeys[provider] = apiKey;
+      // Never keep the secret in frontend state; only remember that one is set.
+      state.apiKeys[provider] = '';
+      state.keysConfigured[provider] = apiKey.length > 0;
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
@@ -308,6 +341,7 @@ export function useAgentStore() {
       // Conversation history can be loaded explicitly if the user chooses a previous conversation.
       state.conversations = await ipcListConversations(id);
       state.currentConversationId = null;
+      closeTranscript();
       state.messages = [];
       state.planVersions = await ipcListPlanVersions(id);
       state.interviewing = true;
@@ -333,7 +367,52 @@ export function useAgentStore() {
     state.interviewing = true;
     state.buildError = null;
     state.rawStreamingContent = null;
+    closeTranscript();
     return conv.id;
+  }
+
+  /**
+   * Loads a past intake transcript for reading. Deliberately read-only: it never
+   * touches `currentPlan`, so history cannot overwrite the canvas.
+   */
+  async function openTranscript(conversationId: string) {
+    try {
+      const messages = await ipcLoadMessages(conversationId);
+      state.transcript = messages.map(message => ({
+        id: message.id,
+        role: message.role as Message['role'],
+        content: message.content,
+        turnPlanJson: message.turnPlanJson ?? null,
+        createdAt: message.createdAt,
+      }));
+      state.transcriptConversationId = conversationId;
+      state.transcriptTitle =
+        state.conversations.find(conversation => conversation.id === conversationId)?.title ??
+        'Past intake';
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+    }
+  }
+
+  function closeTranscript() {
+    state.transcript = null;
+    state.transcriptConversationId = null;
+    state.transcriptTitle = '';
+  }
+
+  /** Deletes every intake transcript for the current agent. The plan is untouched. */
+  async function clearHistory() {
+    if (!state.currentAgent) return;
+    try {
+      await ipcClearHistory(state.currentAgent.id);
+      state.conversations = [];
+      state.currentConversationId = null;
+      state.messages = [];
+      state.buildError = null;
+      closeTranscript();
+    } catch (err: any) {
+      state.error = err?.message || String(err);
+    }
   }
 
   async function createNewAgent(
@@ -347,14 +426,7 @@ export function useAgentStore() {
       const agent = await ipcCreateAgent({
         name,
         description,
-        specJson: {
-          goal: '',
-          steps: [],
-          tools: [],
-          knowledgeSources: [],
-          triggers: [],
-          outputs: [],
-        },
+        specJson: emptyPlan(),
         model: model ?? state.defaultModel ?? 'ollama',
         isStarter: false,
       });
@@ -363,6 +435,7 @@ export function useAgentStore() {
       state.messages = [];
       state.conversations = [];
       state.currentConversationId = null;
+      closeTranscript();
       state.planVersions = [];
       state.interviewing = true;
       state.buildError = null;
@@ -426,6 +499,10 @@ export function useAgentStore() {
       state.error = 'No agent selected';
       return;
     }
+    if (!state.interviewing) {
+      state.error = 'This plan belongs to you now. Use Re-draft to hand it back to Oppy.';
+      return;
+    }
     if (!content.trim()) return;
 
     if (failedAssistantMessageId) {
@@ -481,7 +558,6 @@ export function useAgentStore() {
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
@@ -495,7 +571,6 @@ export function useAgentStore() {
       const cleanup = await ipcOllamaChatStream(
         provider,
         model,
-        apiKey,
         ollamaMessages,
         {
           onChunk: (chunk: string) => {
@@ -533,8 +608,7 @@ export function useAgentStore() {
       ? JSON.stringify(state.currentPlan, null, 2)
       : '{}';
 
-    if (state.interviewing) {
-      return `You are Oppy, a senior AI Agent Architect for Opifex. Your mission is to interview the user and design a production-grade, highly autonomous, unambiguous AI agent specification.
+    return `You are Oppy, a senior AI Agent Architect for Opifex. Your mission is to interview the user and design a production-grade, highly autonomous, unambiguous AI agent specification.
 
 Current agent: "${agentName}"
 Current plan (JSON): ${currentPlan}
@@ -565,146 +639,78 @@ For EVERY turn, return ONLY a valid JSON object in this exact format:
 {
   "response": "Your conversational reply and 1-2 clarifying questions with suggestions",
   "plan": {
+    "version": 2,
     "goal": "Clear, scoped objective with constraints",
-    "steps": ["Step 1 with specific criteria", "Step 2 with action and inputs", ...],
+    "triggers": [{"name": "customer_message", "kind": "event", "schedule": "only when kind is schedule"}],
+    "results": [
+      {"name": "issue_summary", "terminal": false},
+      {"name": "customer_response", "terminal": true, "schema": "markdown"}
+    ],
+    "chains": [
+      {
+        "trigger": "customer_message",
+        "capability": "callable_tool_name",
+        "inputs": [{"port": "message", "from": "trigger", "ref": "customer_message"}],
+        "result": "issue_summary",
+        "decision": "what the model may decide, and what it must not guess",
+        "gate": {"mode": "auto", "onFailure": "stop"}
+      }
+    ],
     "tools": ["callable_tool_1", "callable_tool_2"],
-    "knowledgeSources": ["data_source_1", "documentation_2"],
-    "triggers": ["trigger_event_1"],
-    "outputs": ["output_format_1", "output_format_2"]
+    "knowledgeSources": ["data_source_1", "documentation_2"]
   }
 }
+Every chain is trigger → action → result → gate. Keep these invariants:
+- "trigger" names a declared trigger, or an upstream result when the chain only runs after another chain finishes.
+- "terminal": true marks a deliverable; internal handoffs are terminal: false and must be consumed by a later chain.
+- "decision" states what the model may decide and what it must not invent.
+- Irreversible actions (sending, paying, deleting, approving) need {"mode": "approve", "approver": "<role>"}; otherwise "auto". Pick onFailure from stop | retry (with maxRetries) | escalate.
+- Never emit "steps" or bare-string "triggers"/"outputs"; those belong to the legacy schema.
 Use empty strings or arrays for details not yet determined. The plan panel updates live after every turn.`;
-    } else {
-      return `You are Oppy, a senior AI Agent Architect for Opifex. The interview is complete. Compile the full conversation into a final, production-ready, unambiguous agent specification that an autonomous agent can follow without guessing.
-
-Current agent: "${agentName}"
-Current plan (JSON):
-${currentPlan}
-
-PLAN MODE — PRODUCTION SPECIFICATION STANDARDS:
-1. "goal": A clear, high-precision objective specifying domain, constraints, and time horizons.
-2. "steps": Ordered, self-contained, actionable instructions. Every step must contain:
-   - Actionable criteria and deterministic rules (e.g. scoring formulas, filtering cutoffs, specific search queries).
-   - Explicit inputs, actions to perform, and expected intermediate outputs.
-   - No vague placeholders like "Search tools" or "Rank them" — specify HOW to search, WHAT to filter, and HOW to rank.
-3. "tools": Only valid callable tools and actions (e.g., web_search, github_api, document_summarizer, citation_formatter).
-4. "knowledgeSources": Target information repositories, documentation corpora, databases, or online platforms (e.g., github_repositories, reddit_community_threads, company_docs.md). Do NOT list tools as knowledgeSources.
-5. "triggers": Events or conditions that invoke the agent (e.g., user_request, schedule_daily).
-6. "outputs": Concrete artifacts with schema/format expectations (e.g., top_10_comparison_table, detailed_tool_breakdown, source_citations_with_urls).
-
-RESPONSE FORMAT:
-Return ONLY a raw JSON object — no markdown code fences, no explanations before or after:
-{
-  "response": "A concise summary of the built agent, highlighting its scope, scoring logic, and outputs.",
-  "plan": {
-    "goal": "string",
-    "steps": ["step 1 with explicit logic", "step 2 with inputs and criteria", ...],
-    "tools": ["tool1", "tool2"],
-    "knowledgeSources": ["source1", "source2"],
-    "triggers": ["trigger1"],
-    "outputs": ["output1", "output2"]
-  }
-}
-Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
-    }
   }
 
-  async function confirmBuild() {
+  /**
+   * Hands the plan back to Oppy. Explicit and destructive: the stored plan is
+   * cleared and a fresh intake conversation starts, because Oppy only ever drafts
+   * a plan he owns. There is no partial re-draft.
+   */
+  async function restartDraft() {
     if (!state.currentAgent) return;
     cleanupStream();
-    state.interviewing = false;
     state.buildError = null;
     state.rawStreamingContent = null;
+    failedAssistantMessageId = null;
 
-    const buildMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: 'Please generate the complete agent plan now based on our conversation.',
-      turnPlanJson: null,
-      createdAt: new Date().toISOString(),
-    };
-    state.messages.push(buildMessage);
+    const cleared = emptyPlan();
+    state.currentPlan = null;
+    state.interviewing = true;
 
     try {
-      await ipcSaveMessage({
-        conversationId: state.currentConversationId!,
-        role: 'user',
-        content: buildMessage.content,
-        turnPlanJson: null,
+      await ipcUpdateAgent(state.currentAgent.id, {
+        name: null,
+        description: null,
+        specJson: cleared,
+        model: null,
+        isStarter: null,
       });
+      state.currentAgent = {
+        ...state.currentAgent,
+        specJson: cleared,
+        updatedAt: new Date().toISOString(),
+      };
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
 
-    const provider = state.provider ?? 'ollama';
-    const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
-    const systemPrompt = buildSystemPrompt();
-
-    const ollamaMessages: OllamaMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...state.messages
-        .filter(m => m.id !== failedAssistantMessageId)
-        .map(m => ({ role: m.role, content: m.content })),
-    ];
-
-    state.streaming = true;
-    state.error = null;
-
-    streamingMessageId = crypto.randomUUID();
-    state.streamingMsgId = streamingMessageId;
-    streamingContent = '';
-    const assistantMessage: Message = {
-      id: streamingMessageId,
-      role: 'assistant',
-      content: '',
-      turnPlanJson: null,
-      createdAt: new Date().toISOString(),
-    };
-    state.messages.push(assistantMessage);
-
-    try {
-      const cleanup = await ipcOllamaChatStream(
-        provider,
-        model,
-        apiKey,
-        ollamaMessages,
-        {
-          onChunk: (chunk: string) => {
-            streamingContent += chunk;
-            const msg = state.messages.find(m => m.id === streamingMessageId);
-            if (msg) {
-              msg.content = streamingContent;
-            }
-          },
-          onEnd: () => {
-            handleStreamEnd(streamingMessageId!);
-          },
-          onError: (err: string) => {
-            state.streaming = false;
-            state.error = err;
-            if (!state.interviewing) {
-              state.buildError = err;
-              failedAssistantMessageId = streamingMessageId;
-            }
-            cleanupStream();
-          },
-        },
-      );
-      streamCleanup = cleanup;
-    } catch (err: any) {
-      state.streaming = false;
-      state.error = err?.message || String(err);
-      cleanupStream();
-    }
+    await createNewConversation('Re-draft');
   }
 
-  async function retryBuild() {
-    if (!state.currentAgent) return;
+  /** Re-runs a failed drafting turn. Only valid while Oppy still owns the plan. */
+  async function retryDraft() {
+    if (!state.currentAgent || !state.interviewing) return;
     cleanupStream();
     state.buildError = null;
     state.rawStreamingContent = null;
-    state.interviewing = false;
 
     if (failedAssistantMessageId) {
       state.messages = state.messages.filter(message => message.id !== failedAssistantMessageId);
@@ -714,7 +720,7 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     const buildMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: 'Please generate the complete agent plan now based on our conversation.',
+      content: 'Please continue drafting the agent plan.',
       turnPlanJson: null,
       createdAt: new Date().toISOString(),
     };
@@ -733,7 +739,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
@@ -762,7 +767,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       const cleanup = await ipcOllamaChatStream(
         provider,
         model,
-        apiKey,
         ollamaMessages,
         {
           onChunk: (chunk: string) => {
@@ -844,17 +848,8 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       if (planObject.goal !== undefined && typeof planObject.goal !== 'string') {
         throw new Error('Oppy returned an invalid agent plan');
       }
-      const plan: AgentPlan = {
-        goal: typeof planObject.goal === 'string' ? planObject.goal : undefined,
-        steps: parseStringArray(planObject.steps)?.map((item) => {
-          const action = typeof item === 'string' ? item : item.action;
-          return { action, inputs: [], requiresApproval: false, approvalContext: undefined };
-        }),
-        tools: parseStringArray(planObject.tools)?.map((item) => (typeof item === 'string' ? item : item.action)),
-        knowledgeSources: parseStringArray(planObject.knowledgeSources)?.map((item) => (typeof item === 'string' ? item : item.action)),
-        triggers: parseStringArray(planObject.triggers)?.map((item) => (typeof item === 'string' ? item : item.action)),
-        outputs: parseStringArray(planObject.outputs)?.map((item) => (typeof item === 'string' ? item : item.action)),
-      };
+      // Accepts schema v2 chains as well as the legacy flat shape.
+      const plan: AgentPlan = migratePlan(planObject);
       const response = typeof parsedObject.response === 'string'
         ? parsedObject.response
         : 'I updated the agent plan based on our conversation.';
@@ -921,48 +916,29 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     state.streamingMsgId = null;
   }
 
-  async function updatePlanField(
-    section: keyof AgentPlan,
-    value: string | string[],
-  ) {
-    if (!state.currentAgent || !state.currentPlan) return;
-
-    const newPlan = { ...state.currentPlan };
-    if (section === 'goal') {
-      newPlan.goal = value as string;
-    } else if (section === 'steps') {
-      const stepStrings = Array.isArray(value)
-        ? value.filter(Boolean)
-        : value.split(',').map(s => s.trim()).filter(Boolean);
-      newPlan.steps = stepStrings.map((action) => ({
-        action,
-        inputs: [],
-        requiresApproval: false,
-        approvalContext: undefined,
-      }));
-    } else {
-      newPlan[section] = Array.isArray(value)
-        ? value.filter(Boolean)
-        : value.split(',').map(s => s.trim()).filter(Boolean);
+  /** Persists a whole plan, used by the chain canvas where every edit is a graph edit. */
+  async function replacePlan(nextPlan: AgentPlan) {
+    if (!state.currentAgent) return;
+    // A canvas edit hands the plan to the user: Oppy never writes over it again.
+    if (state.interviewing) {
+      state.interviewing = false;
+      cleanupStream();
     }
-
-    state.currentPlan = newPlan;
-
+    const plan = migratePlan(nextPlan);
+    state.currentPlan = plan;
     try {
-      await ipcUpdateAgent(state.currentAgent.id, {
+      const updated = await ipcUpdateAgent(state.currentAgent.id, {
         name: null,
         description: null,
-        specJson: newPlan,
+        specJson: plan,
         model: null,
         isStarter: null,
       });
-      if (state.currentAgent) {
-        state.currentAgent = {
-          ...state.currentAgent,
-          specJson: newPlan,
-          updatedAt: new Date().toISOString(),
-        };
-      }
+      state.currentAgent = {
+        ...updated,
+        specJson: plan,
+        updatedAt: new Date().toISOString(),
+      };
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
@@ -994,7 +970,7 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
 
   async function restorePlanVersion(versionId: string): Promise<boolean> {
     try {
-      const plan = await ipcRestorePlanVersion(versionId);
+      const plan = migratePlan(await ipcRestorePlanVersion(versionId));
       state.currentPlan = plan;
       if (state.currentAgent) {
         state.currentAgent = {
@@ -1019,6 +995,7 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       state.currentPlan = null;
       state.messages = [];
       state.conversations = [];
+      closeTranscript();
       state.currentConversationId = null;
       state.planVersions = [];
       await loadAgents();
@@ -1102,16 +1079,19 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     loadProvider,
     setProvider,
     setDefaultModel,
-    getApiKey,
+    loadApiKeyStatus,
     setApiKey,
     pullModel,
     selectAgent,
     createNewAgent,
     createNewConversation,
+    openTranscript,
+    closeTranscript,
+    clearHistory,
     sendMessage,
-    confirmBuild,
-    retryBuild,
-    updatePlanField,
+    restartDraft,
+    retryDraft,
+    replacePlan,
     savePlanVersion,
     loadPlanVersions,
     restorePlanVersion,

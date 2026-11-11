@@ -24,25 +24,26 @@ Opifex is a desktop application (Tauri v2 + Rust backend, Vue 3 frontend) for bu
 
 ## Overview
 
-Opifex mimics the chat-driven agent builder pattern popularized by tools like Claude Artifacts and Microsoft Copilot Studio:
+Opifex separates *intake* from *authoring*. An agent plan is a graph of chains — trigger → action → result → gate — and that graph, not a chat transcript, is the artifact you own.
 
-- **Left pane:** Conversation with Oppy (the Wizard), who interviews you about what you want your agent to do
-- **Right pane:** A live, structured agent plan (goal, steps, tools, knowledge sources, triggers, outputs) that updates after every turn
+- **Left pane:** Intake with Oppy, who asks the questions the canvas cannot ask (who approves, what happens on a bad result, what "good enough" means)
+- **Right pane:** The plan canvas — typed trigger and result ports, one card or graph lane per chain, editable gates and bindings
 
 The flow is:
-1. **Select or create an agent** from the library
-2. **Interview mode:** Oppy asks clarifying questions to understand your requirements
-3. **Build Agent:** Once you confirm, Oppy generates a structured JSON plan
-4. **Edit inline:** Modify goal, steps, tools, knowledge sources, triggers, and outputs directly in the right pane
-5. **Save versions:** Save named plan versions and export as JSON files
+1. **Select or create an agent** from the library, or start from a starter
+2. **Intake:** Oppy drafts chains as you answer questions; the canvas fills in live
+3. **Take over:** The first edit you make to the canvas hands the plan to you, and Oppy becomes read-only
+4. **Author:** Add chains, declare ports, bind inputs, set gates and failure policy directly
+5. **Save versions:** Save named plan versions and export as JSON files (Re-draft clears the plan and reopens intake)
 
 ## ✨ Features
 
 ### Core
-- **Split-pane UI:** Chat on the left, live agent plan on the right
-- **Wizard interview:** Oppy conducts a natural conversation to gather requirements before generating a plan
-- **Live plan updates:** The right pane updates after every conversation turn
-- **Inline plan editing:** Edit goal, steps, tools, knowledge sources, triggers, and outputs directly
+- **Split-pane UI:** Intake on the left, chain canvas on the right
+- **Intake drafting:** Oppy drafts trigger → action → result chains from a conversation, then hands them over
+- **Chain canvas:** Cards or a node graph, with typed ports and result→trigger handoffs made visible
+- **Editable gates:** Per-chain approver, failure policy (stop / retry / escalate) and retry limits
+- **Live checks:** Unbound ports, orphaned results, dangling bindings, and approval gates without an approver are reported inline
 - **Agent library:** Save agents locally with starter templates pre-installed
 - **Agent CRUD:** Create, rename, duplicate, delete, export, and import agents
 - **Plan versioning:** Save and restore named versions of agent plans

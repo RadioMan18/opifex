@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useAgentStore } from '@/stores/agentStore'
+import { emptyPlan } from '@/lib/planSchema'
 
 vi.mock('@/services/ipc')
 
@@ -19,6 +20,8 @@ import {
   ollamaSetApiKey,
   createConversation,
   listConversations,
+  loadMessages,
+  clearHistory,
   saveMessage,
   savePlanVersion,
   listPlanVersions,
@@ -40,6 +43,8 @@ const mockOllamaSetProvider = vi.mocked(ollamaSetProvider)
 const mockOllamaSetApiKey = vi.mocked(ollamaSetApiKey)
 const mockCreateConversation = vi.mocked(createConversation)
 const mockListConversations = vi.mocked(listConversations)
+const mockLoadMessages = vi.mocked(loadMessages)
+const mockClearHistory = vi.mocked(clearHistory)
 const mockSaveMessage = vi.mocked(saveMessage)
 const mockSavePlanVersion = vi.mocked(savePlanVersion)
 const mockListPlanVersions = vi.mocked(listPlanVersions)
@@ -49,7 +54,7 @@ const mockAgent = {
   id: 'test-agent-1',
   name: 'Test Agent',
   description: 'A test agent',
-  specJson: { goal: 'Test goal', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] },
+  specJson: { version: 2 as const, goal: 'Test goal', triggers: [], results: [], chains: [], tools: [], knowledgeSources: [] },
   model: 'ollama',
   isStarter: false,
   createdAt: '2024-01-01T00:00:00Z',
@@ -82,14 +87,19 @@ describe('useAgentStore', () => {
     store.state.messages = []
     store.state.conversations = []
     store.state.currentConversationId = null
+    store.state.transcript = null
+    store.state.transcriptConversationId = null
+    store.state.transcriptTitle = ''
     store.state.planVersions = []
     store.state.models = []
     store.state.defaultModel = null
     store.state.provider = null
     store.state.apiKeys = {}
+    store.state.keysConfigured = {}
     store.state.loading = false
     store.state.streaming = false
     store.state.streamingMsgId = null
+    store.state.interviewing = true
     store.state.error = null
   })
 
@@ -141,7 +151,7 @@ describe('useAgentStore', () => {
       expect(mockCreateAgent).toHaveBeenCalledWith({
         name: 'New Agent',
         description: 'A new agent',
-        specJson: { goal: '', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] },
+        specJson: emptyPlan(),
         model: 'ollama',
         isStarter: false,
       })
@@ -150,18 +160,19 @@ describe('useAgentStore', () => {
     })
   })
 
-  describe('updatePlanField', () => {
-    it('should update a plan field and persist it', async () => {
+  describe('replacePlan', () => {
+    it('persists a chain canvas edit and keeps the normalised plan', async () => {
       mockUpdateAgent.mockResolvedValue(mockAgent)
 
       const store = useAgentStore()
       store.state.currentAgent = mockAgent
-      store.state.currentPlan = { goal: 'original', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] }
+      store.state.currentPlan = emptyPlan()
+      const next = { ...emptyPlan(), goal: 'canvas goal' }
 
-      await store.updatePlanField('goal', 'new goal')
+      await store.replacePlan(next)
 
-      expect(store.state.currentPlan?.goal).toBe('new goal')
-      expect(mockUpdateAgent).toHaveBeenCalled()
+      expect(store.state.currentPlan).toEqual(next)
+      expect(mockUpdateAgent).toHaveBeenCalledWith('test-agent-1', expect.objectContaining({ specJson: next }))
     })
   })
 
@@ -185,20 +196,39 @@ describe('useAgentStore', () => {
       expect(store.state.messages[1].role).toBe('assistant')
       expect(store.state.streaming).toBe(true)
 
-      const [, model, , messages] = mockOllamaChatStream.mock.calls[0]
+      const [, model, messages] = mockOllamaChatStream.mock.calls[0]
       expect(model).toBe('dolphin-llama3:8b')
       expect(messages.map(message => message.content)).toContain('Hello')
       expect(messages.some(message => message.role === 'assistant' && !message.content)).toBe(false)
     })
 
     it('updates the plan after an interview turn and uses the selected model', async () => {
-      const plan = {
+      // Oppy may still answer in the legacy flat shape; the store normalises it.
+      const legacyPlan = {
         goal: 'Answer customer questions',
         steps: [{ action: 'Understand the question', inputs: [], requiresApproval: false }],
         tools: ['Help center search'],
         knowledgeSources: ['Help center articles'],
         triggers: [],
         outputs: ['A helpful answer'],
+      }
+      const plan = {
+        version: 2 as const,
+        goal: 'Answer customer questions',
+        triggers: [],
+        results: [{ name: 'A helpful answer', terminal: true }],
+        chains: [
+          {
+            id: 'chain-1',
+            trigger: '',
+            capability: 'Understand the question',
+            inputs: [],
+            result: 'A helpful answer',
+            gate: { mode: 'auto' as const, onFailure: 'stop' as const },
+          },
+        ],
+        tools: ['Help center search'],
+        knowledgeSources: ['Help center articles'],
       }
       const response = 'Which help center should the agent use?'
       mockSaveMessage.mockResolvedValue({
@@ -210,8 +240,8 @@ describe('useAgentStore', () => {
         createdAt: '2024-01-01T00:00:00Z',
       })
       mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: plan })
-      mockOllamaChatStream.mockImplementation(async (_provider, _model, _apiKey, _messages, callbacks) => {
-        callbacks.onChunk(JSON.stringify({ response, plan }))
+      mockOllamaChatStream.mockImplementation(async (_provider, _model, _messages, callbacks) => {
+        callbacks.onChunk(JSON.stringify({ response, plan: legacyPlan }))
         callbacks.onEnd()
         return () => {}
       })
@@ -232,28 +262,6 @@ describe('useAgentStore', () => {
       expect(mockUpdateAgent).toHaveBeenCalledWith('test-agent-1', expect.objectContaining({ specJson: plan }))
     })
 
-    it('uses the selected model when building the agent', async () => {
-      mockSaveMessage.mockResolvedValue({
-        id: 'message-1',
-        conversationId: 'conv-1',
-        role: 'user',
-        content: 'Please generate the complete agent plan now based on our conversation.',
-        turnPlanJson: null,
-        createdAt: '2024-01-01T00:00:00Z',
-      })
-      mockOllamaChatStream.mockResolvedValue(() => {})
-
-      const store = useAgentStore()
-      store.state.currentAgent = mockAgent
-      store.state.currentPlan = mockAgent.specJson
-      store.state.currentConversationId = 'conv-1'
-      store.state.defaultModel = 'qwen3-coder:30b'
-
-      await store.confirmBuild()
-
-      expect(mockOllamaChatStream.mock.calls[0][1]).toBe('qwen3-coder:30b')
-    })
-
     it('repairs repeated-token corruption before parsing the plan response', async () => {
       const damagedResponse = `{{ " "planplan":": { { " "goalgoal":": " "ResearchResearch business business productivity productivity apps apps on on the the internet internet and and rank rank them them based based on on GitHub GitHub stars stars and and Reddit Reddit/G/GititHubHub comments comments from from the the last last 1 155 days days",", " "knowledgeknowledgeSourcesSources":": [], [], " "outputsoutputs":": [ [ " "researchresearch_report_report",", " "sourcesource_c_citationsitations",", " "keykey_find_findingsings_summary_summary"" ], ], " "stepssteps":": [ [ " "ClarClarifyify research research scope scope and and questions questions",", " "PerformPerform web web searches searches across across multiple multiple sources sources including including GitHub GitHub and and web web-based-based platforms platforms",", " "ExtractExtract and and verify verify key key facts facts about about app app stars stars,, comments comments,, and and other other relevant relevant metrics metrics",", " "SynSynthesizethesize findings findings into into a a structured structured report report with with ranked ranked table table of of top top 1 100 apps apps",", " "AddAdd citations citations and and source source links links"" ], ], " "toolstools":": [ [ " "webweb_search_search",", " "documentdocument_sum_summarmarizerizer",", " "citationcitation_formatter_formatter"" ], ], " "trtriggersiggers":": [] [] } }, }}, " "responseresponse":": " "II've've created created the the complete complete plan plan for for your your Research Research Agent Agent.. The The agent agent will will focus focus on on open-source-source business business productivity productivity apps apps,, then then generate generate a a structured structured report with citations."." }}}`
       mockSaveMessage.mockResolvedValue({
@@ -264,8 +272,65 @@ describe('useAgentStore', () => {
         turnPlanJson: null,
         createdAt: '2024-01-01T00:00:00Z',
       })
-      mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: { goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/G/GititHubHub comments from the last 1 155 days', steps: [{ action: 'Clarify research scope and questions', inputs: [], requiresApproval: false }], tools: ['web_search'], knowledgeSources: [], triggers: [], outputs: ['research_report'] } })
-      mockOllamaChatStream.mockImplementation(async (_provider, _model, _apiKey, _messages, callbacks) => {
+      const gate = { mode: 'auto' as const, onFailure: 'stop' as const }
+      const expectedPlan = {
+        version: 2 as const,
+        goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/GitHub comments from the last 155 days',
+        triggers: [],
+        results: [
+          { name: 'step_1_result', terminal: false },
+          { name: 'step_2_result', terminal: false },
+          { name: 'research_report', terminal: true },
+          { name: 'source_citations', terminal: true },
+          { name: 'key_findings_summary', terminal: true },
+        ],
+        chains: [
+          {
+            id: 'chain-1',
+            trigger: '',
+            capability: 'Clarify research scope and questions',
+            inputs: [],
+            result: 'step_1_result',
+            gate,
+          },
+          {
+            id: 'chain-2',
+            trigger: 'step_1_result',
+            capability: 'Perform web searches across multiple sources including GitHub and web-based platforms',
+            inputs: [],
+            result: 'step_2_result',
+            gate,
+          },
+          {
+            id: 'chain-3',
+            trigger: 'step_2_result',
+            capability: 'Extract and verify key facts about app stars, comments, and other relevant metrics',
+            inputs: [],
+            result: 'research_report',
+            gate,
+          },
+          {
+            id: 'chain-4',
+            trigger: 'research_report',
+            capability: 'Synthesize findings into a structured report with ranked table of top 100 apps',
+            inputs: [],
+            result: 'source_citations',
+            gate,
+          },
+          {
+            id: 'chain-5',
+            trigger: 'source_citations',
+            capability: 'Add citations and source links',
+            inputs: [],
+            result: 'key_findings_summary',
+            gate,
+          },
+        ],
+        tools: ['web_search', 'document_summarizer', 'citation_formatter'],
+        knowledgeSources: [],
+      }
+      mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: expectedPlan })
+      mockOllamaChatStream.mockImplementation(async (_provider, _model, _messages, callbacks) => {
         callbacks.onChunk(damagedResponse)
         callbacks.onEnd()
         return () => {}
@@ -276,23 +341,10 @@ describe('useAgentStore', () => {
       store.state.currentPlan = mockAgent.specJson
       store.state.currentConversationId = 'conv-1'
 
-      await store.confirmBuild()
+      await store.sendMessage('Please continue drafting the agent plan.')
 
       expect(store.state.buildError).toBeNull()
-      expect(store.state.currentPlan).toEqual({
-        goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/GitHub comments from the last 155 days',
-        steps: [
-          { action: 'Clarify research scope and questions', inputs: [], requiresApproval: false, approvalContext: undefined },
-          { action: 'Perform web searches across multiple sources including GitHub and web-based platforms', inputs: [], requiresApproval: false, approvalContext: undefined },
-          { action: 'Extract and verify key facts about app stars, comments, and other relevant metrics', inputs: [], requiresApproval: false, approvalContext: undefined },
-          { action: 'Synthesize findings into a structured report with ranked table of top 100 apps', inputs: [], requiresApproval: false, approvalContext: undefined },
-          { action: 'Add citations and source links', inputs: [], requiresApproval: false, approvalContext: undefined },
-        ],
-        tools: ['web_search', 'document_summarizer', 'citation_formatter'],
-        knowledgeSources: [],
-        triggers: [],
-        outputs: ['research_report', 'source_citations', 'key_findings_summary'],
-      })
+      expect(store.state.currentPlan).toEqual(expectedPlan)
       expect(store.state.messages.at(-1)?.content).toContain("I've created the complete plan")
       expect(store.state.buildError).toBeNull()
     })
@@ -301,6 +353,108 @@ describe('useAgentStore', () => {
       const store = useAgentStore()
       await store.sendMessage('Hello')
       expect(store.state.error).toBe('No agent selected')
+    })
+  })
+
+  describe('plan ownership', () => {
+    it('hands the plan to the user on a canvas edit and refuses further drafts', async () => {
+      mockUpdateAgent.mockResolvedValue(mockAgent)
+
+      const store = useAgentStore()
+      store.state.currentAgent = mockAgent
+      store.state.currentPlan = emptyPlan()
+      store.state.interviewing = true
+
+      await store.replacePlan({ ...emptyPlan(), goal: 'hand edited' })
+
+      expect(store.state.interviewing).toBe(false)
+
+      mockOllamaChatStream.mockClear()
+      await store.sendMessage('add another step')
+
+      expect(mockOllamaChatStream).not.toHaveBeenCalled()
+      expect(store.state.error).toBe('This plan belongs to you now. Use Re-draft to hand it back to Oppy.')
+    })
+
+    it('clears the plan and reopens intake on re-draft', async () => {
+      mockUpdateAgent.mockResolvedValue(mockAgent)
+      mockCreateConversation.mockResolvedValue({ ...mockConversation, id: 'conv-2' })
+
+      const store = useAgentStore()
+      store.state.currentAgent = mockAgent
+      store.state.currentPlan = { ...emptyPlan(), goal: 'hand edited' }
+      store.state.interviewing = false
+
+      await store.restartDraft()
+
+      expect(mockUpdateAgent).toHaveBeenCalledWith('test-agent-1', expect.objectContaining({ specJson: emptyPlan() }))
+      expect(store.state.currentPlan).toBeNull()
+      expect(store.state.interviewing).toBe(true)
+      expect(mockCreateConversation).toHaveBeenCalledWith({ agentId: 'test-agent-1', title: 'Re-draft' })
+    })
+  })
+
+  describe('transcripts', () => {
+    it('loads a past intake read-only and leaves the plan alone', async () => {
+      mockLoadMessages.mockResolvedValue([
+        {
+          id: 'm1',
+          conversationId: 'conv-1',
+          role: 'user',
+          content: 'We reply to support email',
+          turnPlanJson: null,
+          createdAt: '2024-01-01T00:00:00Z',
+        },
+      ])
+
+      const store = useAgentStore()
+      const plan = { ...emptyPlan(), goal: 'current plan' }
+      store.state.currentAgent = mockAgent
+      store.state.currentPlan = plan
+      store.state.conversations = [mockConversation]
+
+      await store.openTranscript('conv-1')
+
+      expect(store.state.transcript?.map(message => message.content)).toEqual([
+        'We reply to support email',
+      ])
+      expect(store.state.transcriptTitle).toBe('Test Conversation')
+      expect(store.state.transcriptConversationId).toBe('conv-1')
+      expect(store.state.currentPlan).toEqual(plan)
+    })
+
+    it('closes the transcript view', async () => {
+      const store = useAgentStore()
+      store.state.transcript = []
+      store.state.transcriptConversationId = 'conv-1'
+      store.state.transcriptTitle = 'Test Conversation'
+
+      store.closeTranscript()
+
+      expect(store.state.transcript).toBeNull()
+      expect(store.state.transcriptConversationId).toBeNull()
+      expect(store.state.transcriptTitle).toBe('')
+    })
+
+    it('clears every transcript for the agent but keeps the plan', async () => {
+      mockClearHistory.mockResolvedValue(4)
+
+      const store = useAgentStore()
+      store.state.currentAgent = mockAgent
+      store.state.currentPlan = { ...emptyPlan(), goal: 'kept' }
+      store.state.conversations = [mockConversation]
+      store.state.currentConversationId = 'conv-1'
+      store.state.messages = [
+        { id: 'm1', role: 'user', content: 'hi', turnPlanJson: null, createdAt: '2024-01-01T00:00:00Z' },
+      ]
+
+      await store.clearHistory()
+
+      expect(mockClearHistory).toHaveBeenCalledWith('test-agent-1')
+      expect(store.state.conversations).toEqual([])
+      expect(store.state.currentConversationId).toBeNull()
+      expect(store.state.messages).toEqual([])
+      expect(store.state.currentPlan?.goal).toBe('kept')
     })
   })
 
@@ -337,19 +491,19 @@ describe('useAgentStore', () => {
 
   describe('savePlanVersion', () => {
     it('should save a plan version and add to list', async () => {
-      const version = { id: 'v1', agentId: 'test-agent-1', label: 'v1', specJson: { goal: 'v1 goal' }, createdAt: '2024-01-01' }
+      const version = { id: 'v1', agentId: 'test-agent-1', label: 'v1', specJson: { ...emptyPlan(), goal: 'v1 goal' }, createdAt: '2024-01-01' }
       mockSavePlanVersion.mockResolvedValue(version)
 
       const store = useAgentStore()
       store.state.currentAgent = mockAgent
-      store.state.currentPlan = { goal: 'v1 goal', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] }
+      store.state.currentPlan = { ...emptyPlan(), goal: 'v1 goal' }
 
       const result = await store.savePlanVersion('v1')
 
       expect(mockSavePlanVersion).toHaveBeenCalledWith({
         agentId: 'test-agent-1',
         label: 'v1',
-        specJson: { goal: 'v1 goal', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] },
+        specJson: { ...emptyPlan(), goal: 'v1 goal' },
       })
       expect(store.state.planVersions).toContainEqual(version)
       expect(result).toEqual(version)
@@ -358,7 +512,7 @@ describe('useAgentStore', () => {
 
   describe('restorePlanVersion', () => {
     it('should restore a plan version', async () => {
-      const plan = { goal: 'restored', steps: [], tools: [], knowledgeSources: [], triggers: [], outputs: [] }
+      const plan = { ...emptyPlan(), goal: 'restored' }
       mockRestorePlanVersion.mockResolvedValue(plan)
 
       const store = useAgentStore()
@@ -392,7 +546,8 @@ describe('useAgentStore', () => {
       await store.setApiKey('openai', 'sk-test-key')
 
       expect(mockOllamaSetApiKey).toHaveBeenCalledWith('openai', 'sk-test-key')
-      expect(store.state.apiKeys.openai).toBe('sk-test-key')
+      expect(store.state.apiKeys.openai).toBe('')
+      expect(store.state.keysConfigured.openai).toBe(true)
     })
   })
 })

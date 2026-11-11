@@ -3,12 +3,62 @@
   "name": "RAG Knowledge Agent",
   "description": "Answers questions by searching and reasoning over the company's internal knowledge base and documents.",
   "specJson": {
+    "version": 2,
     "goal": "Answer employee questions accurately using internal company documents and knowledge base",
-    "steps": ["Receive user question", "Search internal knowledge base for relevant documents", "Retrieve and rank most relevant passages", "Synthesize answer grounded in retrieved sources", "Provide answer with source references"],
-    "tools": ["document_search", "semantic_search", "qa_over_docs"],
-    "knowledgeSources": ["company_handbook.pdf", "policy_documents.md", "technical_docs.md", "onboarding_guide.md"],
-    "triggers": ["employee_question", "policy_lookup", "procedure_inquiry"],
-    "outputs": ["answered_question", "source_references", "confidence_score"]
+    "triggers": [
+      { "name": "employee_question", "kind": "event", "description": "An employee asks a question in chat or email" },
+      { "name": "policy_lookup", "kind": "event", "description": "Someone asks for a specific policy or procedure" }
+    ],
+    "results": [
+      { "name": "ranked_passages", "terminal": false, "description": "Retrieved passages ordered by relevance" },
+      { "name": "answered_question", "terminal": true, "schema": "markdown{answer,confidence}", "description": "Grounded answer with a confidence score" },
+      { "name": "source_references", "terminal": true, "schema": "reference[]{document,section}", "description": "Documents and sections backing the answer" },
+      { "name": "policy_answer", "terminal": true, "schema": "markdown", "description": "Quoted policy text with its handbook section" }
+    ],
+    "chains": [
+      {
+        "id": "rag-1",
+        "trigger": "employee_question",
+        "capability": "semantic_search",
+        "inputs": [
+          { "port": "query", "from": "trigger", "ref": "employee_question" },
+          { "port": "corpus", "from": "parameter", "value": "company_handbook.pdf, policy_documents.md, technical_docs.md, onboarding_guide.md" }
+        ],
+        "result": "ranked_passages",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rag-2",
+        "trigger": "ranked_passages",
+        "capability": "qa_over_docs",
+        "inputs": [{ "port": "passages", "from": "result", "ref": "ranked_passages" }],
+        "result": "answered_question",
+        "decision": "Answer only from ranked_passages. If confidence is low, say what is missing instead of guessing.",
+        "gate": { "mode": "auto", "onFailure": "escalate" }
+      },
+      {
+        "id": "rag-3",
+        "trigger": "answered_question",
+        "capability": "attach_citations",
+        "inputs": [{ "port": "answer", "from": "result", "ref": "answered_question" }],
+        "result": "source_references",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "rag-4",
+        "trigger": "policy_lookup",
+        "capability": "document_search",
+        "inputs": [
+          { "port": "topic", "from": "trigger", "ref": "policy_lookup" },
+          { "port": "corpus", "from": "parameter", "value": "policy_documents.md, company_handbook.pdf" }
+        ],
+        "result": "policy_answer",
+        "decision": "Quote the policy verbatim and name the section. Never summarise a policy into a paraphrase that changes its meaning.",
+        "gate": { "mode": "approve", "approver": "compliance", "onFailure": "stop" }
+      }
+    ],
+    "tools": ["semantic_search", "qa_over_docs", "attach_citations", "document_search"],
+    "knowledgeSources": ["company_handbook.pdf", "policy_documents.md", "technical_docs.md", "onboarding_guide.md"]
   },
   "model": "ollama",
   "isStarter": true,

@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
-import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
-import { writeFile as ipcWriteFile } from '@/services/ipc';
+import { saveTextFile, loadTextFile } from '@/services/ipc';
 import type { AgentPlan, InstalledTemplate, TemplateSource } from '@/types/agent';
 
 const store = useAgentStore();
@@ -17,14 +15,18 @@ const {
   selectAgent,
   createNewAgent,
   createNewConversation,
+  openTranscript,
+  closeTranscript,
+  clearHistory,
   sendMessage,
-  confirmBuild,
-  retryBuild,
-  updatePlanField,
+  retryDraft,
+  restartDraft,
+  replacePlan,
   deleteCurrentAgent,
   pullModel,
   setDefaultModel,
   setApiKey,
+  loadApiKeyStatus,
   savePlanVersion,
   loadPlanVersions,
   restorePlanVersion,
@@ -56,6 +58,7 @@ onMounted(async () => {
   setupKeyboardShortcuts();
   await loadTemplateSources();
   await loadInstalledTemplates();
+  await loadApiKeyStatus();
 });
 
 function toggleDarkMode() {
@@ -137,6 +140,7 @@ const streaming = computed(() => state.streaming);
 const streamingMsgId = computed(() => state.streamingMsgId);
 const error = computed(() => state.error);
 const apiKeys = computed(() => state.apiKeys);
+const keysConfigured = computed(() => state.keysConfigured);
 const planVersions = computed(() => state.planVersions);
 const interviewing = computed(() => state.interviewing);
 const buildError = computed(() => state.buildError);
@@ -211,8 +215,8 @@ async function handleApiKeyChange(prov: string, e: Event) {
   state.apiKeys[prov as keyof typeof state.apiKeys] = target.value;
 }
 
-async function handlePlanUpdate(section: keyof AgentPlan, value: string | string[]) {
-  await updatePlanField(section, value);
+async function handlePlanUpdate(nextPlan: AgentPlan) {
+  await replacePlan(nextPlan);
 }
 
 async function handleAddTemplateSource(name: string, url: string) {
@@ -232,22 +236,15 @@ async function handleInstallMarketplaceTemplate(templateId: string, version: str
 }
 
 async function handleImportAgent() {
-  const filePath = await tauriOpenDialog({
-    multiple: false,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  });
-
-  if (filePath && filePath.length > 0) {
-    try {
-      const content = await tauriReadFile(filePath[0]);
-      const text = new TextDecoder().decode(content);
-      const agent = await importAgent(text);
-      if (agent) {
-        await selectAgent(agent.id);
-      }
-    } catch (err: any) {
-      state.error = err?.message || String(err);
+  try {
+    const text = await loadTextFile();
+    if (!text) return;
+    const agent = await importAgent(text);
+    if (agent) {
+      await selectAgent(agent.id);
     }
+  } catch (err: any) {
+    state.error = err?.message || String(err);
   }
 }
 
@@ -292,16 +289,10 @@ async function handleSaveVersion() {
     };
     const json = JSON.stringify(planExport, null, 2);
     const defaultName = `${currentAgent.value.name || 'agent'}-plan.json`;
-    const filePath = await tauriSaveDialog({
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (filePath) {
-      try {
-        await ipcWriteFile(filePath, json);
-      } catch (err: any) {
-        state.error = err?.message || String(err);
-      }
+    try {
+      await saveTextFile(defaultName, json);
+    } catch (err: any) {
+      state.error = err?.message || String(err);
     }
   }
 
@@ -384,10 +375,17 @@ async function setupKeyboardShortcuts() {
           :current-agent-name="currentAgent?.name ?? ''"
           :interviewing="interviewing"
           :build-error="buildError"
+          :conversations-prop="state.conversations"
+          :transcript-prop="state.transcript"
+          :transcript-title-prop="state.transcriptTitle"
+          :transcript-conversation-id-prop="state.transcriptConversationId"
           @send="handleSendMessage"
-          @build="confirmBuild"
-          @retry="retryBuild"
+          @retry="retryDraft"
+          @re-draft="restartDraft"
           @new-conversation="handleNewConversation"
+          @open-transcript="openTranscript"
+          @close-transcript="closeTranscript"
+          @clear-history="clearHistory"
         />
 
         <AgentLibrary
@@ -494,7 +492,7 @@ async function setupKeyboardShortcuts() {
             :value="apiKeys.openai || ''"
             @input="(e) => handleApiKeyChange('openai', e)"
             type="password"
-            placeholder="sk-..."
+            :placeholder="keysConfigured.openai ? 'Stored in the OS keychain — enter a new key to replace' : 'sk-...'"
             class="form-input"
           />
           <button class="btn-save-key" @click="handleSetApiKey('openai', state.apiKeys.openai || '')">Save</button>
@@ -505,7 +503,7 @@ async function setupKeyboardShortcuts() {
             :value="apiKeys.anthropic || ''"
             @input="(e) => handleApiKeyChange('anthropic', e)"
             type="password"
-            placeholder="sk-ant-..."
+            :placeholder="keysConfigured.anthropic ? 'Stored in the OS keychain — enter a new key to replace' : 'sk-ant-...'"
             class="form-input"
           />
           <button class="btn-save-key" @click="handleSetApiKey('anthropic', state.apiKeys.anthropic || '')">Save</button>

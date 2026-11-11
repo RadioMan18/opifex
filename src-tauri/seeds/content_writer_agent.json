@@ -3,12 +3,76 @@
   "name": "Content Writer Agent",
   "description": "Drafts on-brand internal and external communications including announcements, newsletters, and press releases.",
   "specJson": {
+    "version": 2,
     "goal": "Write engaging, on-brand content for internal and external audiences",
-    "steps": ["Understand content objective and target audience", "Research key messages and brand guidelines", "Draft outline and structure", "Write and refine content", "Review against brand voice and style guide"],
-    "tools": ["grammar_checker", "brand_voice_checker", "word_counter", "readability_analyzer"],
-    "knowledgeSources": ["brand_voice_guide.md", "style_guide.md", "previous_campaigns.md", "messaging_framework.md"],
-    "triggers": ["content_request", "newsletter_request", "press_release_request", "announcement_request"],
-    "outputs": ["content_draft", "final_copy", "headline_options", "call_to_action_suggestions"]
+    "triggers": [
+      { "name": "content_request", "kind": "event", "description": "Someone requests a piece of content" },
+      { "name": "announcement_request", "kind": "event", "description": "A company announcement needs drafting" }
+    ],
+    "results": [
+      { "name": "content_brief", "terminal": false, "description": "Objective, audience, and key messages" },
+      { "name": "outline", "terminal": false, "description": "Section-by-section structure" },
+      { "name": "content_draft", "terminal": true, "schema": "markdown", "description": "First full draft" },
+      { "name": "final_copy", "terminal": true, "schema": "markdown", "description": "Polished copy ready to publish" },
+      { "name": "headline_options", "terminal": true, "schema": "string[]", "description": "Alternative headlines and calls to action" }
+    ],
+    "chains": [
+      {
+        "id": "cw-1",
+        "trigger": "content_request",
+        "capability": "brief_writer",
+        "inputs": [{ "port": "request", "from": "trigger", "ref": "content_request" }],
+        "result": "content_brief",
+        "decision": "Pin down audience, channel, and one primary call to action before drafting.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cw-2",
+        "trigger": "announcement_request",
+        "capability": "brief_writer",
+        "inputs": [{ "port": "request", "from": "trigger", "ref": "announcement_request" }],
+        "result": "content_brief",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cw-3",
+        "trigger": "content_brief",
+        "capability": "outline_planner",
+        "inputs": [{ "port": "brief", "from": "result", "ref": "content_brief" }],
+        "result": "outline",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cw-4",
+        "trigger": "outline",
+        "capability": "draft_writer",
+        "inputs": [
+          { "port": "outline", "from": "result", "ref": "outline" },
+          { "port": "voice", "from": "parameter", "value": "brand_voice_guide.md" }
+        ],
+        "result": "content_draft",
+        "decision": "Follow the brand voice guide. Never state a number, date, or claim that is not in the brief.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cw-5",
+        "trigger": "content_draft",
+        "capability": "brand_voice_checker",
+        "inputs": [{ "port": "draft", "from": "result", "ref": "content_draft" }],
+        "result": "final_copy",
+        "gate": { "mode": "approve", "approver": "brand_lead", "onFailure": "stop" }
+      },
+      {
+        "id": "cw-6",
+        "trigger": "final_copy",
+        "capability": "headline_generator",
+        "inputs": [{ "port": "copy", "from": "result", "ref": "final_copy" }],
+        "result": "headline_options",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      }
+    ],
+    "tools": ["brief_writer", "outline_planner", "draft_writer", "brand_voice_checker", "grammar_checker", "headline_generator", "readability_analyzer"],
+    "knowledgeSources": ["brand_voice_guide.md", "style_guide.md", "previous_campaigns.md", "messaging_framework.md"]
   },
   "model": "ollama",
   "isStarter": true,

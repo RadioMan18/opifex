@@ -3,12 +3,88 @@
   "name": "Code Review Agent",
   "description": "Reviews pull requests, identifies issues, suggests fixes, and recommends approval or changes.",
   "specJson": {
+    "version": 2,
     "goal": "Improve code quality by reviewing pull requests and providing actionable feedback",
-    "steps": ["Review pull request code changes", "Identify bugs, security issues, and style violations", "Suggest specific code fixes and improvements", "Check test coverage and documentation", "Recommend approve, request changes, or comment"],
-    "tools": ["linter", "static_analyzer", "test_runner", "github_api"],
-    "knowledgeSources": ["coding_standards.md", "security_guidelines.md", "review_checklist.md"],
-    "triggers": ["pull_request_opened", "pull_request_updated", "code_review_request"],
-    "outputs": ["review_comments", "approval_status", "suggested_changes", "severity_flags"]
+    "triggers": [
+      { "name": "pull_request_opened", "kind": "event", "description": "A pull request is opened" },
+      { "name": "pull_request_updated", "kind": "event", "description": "New commits are pushed to a pull request" },
+      { "name": "code_review_request", "kind": "event", "description": "A maintainer explicitly asks for a review" }
+    ],
+    "results": [
+      { "name": "changed_files", "terminal": false, "description": "The diff under review" },
+      { "name": "analysis_findings", "terminal": false, "description": "Lint, static analysis, and test results" },
+      { "name": "review_comments", "terminal": true, "schema": "comment[]{path,line,severity,body}", "description": "Inline review comments" },
+      { "name": "suggested_changes", "terminal": true, "schema": "patch[]", "description": "Concrete fix suggestions" },
+      { "name": "approval_status", "terminal": true, "schema": "enum[approve,request_changes,comment]", "description": "Final review recommendation" }
+    ],
+    "chains": [
+      {
+        "id": "cr-1",
+        "trigger": "pull_request_opened",
+        "capability": "github_api",
+        "inputs": [{ "port": "pull_request", "from": "trigger", "ref": "pull_request_opened" }],
+        "result": "changed_files",
+        "gate": { "mode": "auto", "onFailure": "retry", "maxRetries": 2 }
+      },
+      {
+        "id": "cr-2",
+        "trigger": "pull_request_updated",
+        "capability": "github_api",
+        "inputs": [{ "port": "pull_request", "from": "trigger", "ref": "pull_request_updated" }],
+        "result": "changed_files",
+        "gate": { "mode": "auto", "onFailure": "retry", "maxRetries": 2 }
+      },
+      {
+        "id": "cr-3",
+        "trigger": "code_review_request",
+        "capability": "github_api",
+        "inputs": [{ "port": "pull_request", "from": "trigger", "ref": "code_review_request" }],
+        "result": "changed_files",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cr-4",
+        "trigger": "changed_files",
+        "capability": "static_analyzer",
+        "inputs": [
+          { "port": "diff", "from": "result", "ref": "changed_files" },
+          { "port": "rules", "from": "parameter", "value": "coding_standards.md, security_guidelines.md" }
+        ],
+        "result": "analysis_findings",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cr-5",
+        "trigger": "analysis_findings",
+        "capability": "review_writer",
+        "inputs": [{ "port": "findings", "from": "result", "ref": "analysis_findings" }],
+        "result": "review_comments",
+        "decision": "Report only findings backed by a tool result or a quoted line of code. No stylistic opinions outside the checklist.",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cr-6",
+        "trigger": "analysis_findings",
+        "capability": "diff_patcher",
+        "inputs": [{ "port": "findings", "from": "result", "ref": "analysis_findings" }],
+        "result": "suggested_changes",
+        "gate": { "mode": "auto", "onFailure": "stop" }
+      },
+      {
+        "id": "cr-7",
+        "trigger": "review_comments",
+        "capability": "approval_decider",
+        "inputs": [
+          { "port": "comments", "from": "result", "ref": "review_comments" },
+          { "port": "findings", "from": "result", "ref": "analysis_findings" }
+        ],
+        "result": "approval_status",
+        "decision": "Block on any security finding. Never approve a change that fails the test suite.",
+        "gate": { "mode": "approve", "approver": "maintainer", "onFailure": "stop" }
+      }
+    ],
+    "tools": ["github_api", "static_analyzer", "test_runner", "review_writer", "diff_patcher", "approval_decider"],
+    "knowledgeSources": ["coding_standards.md", "security_guidelines.md", "review_checklist.md"]
   },
   "model": "ollama",
   "isStarter": true,

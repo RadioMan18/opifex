@@ -5,9 +5,10 @@ use crate::commands::{
     ollama_get_default_model, ollama_list_models, ollama_pull_model, ollama_set_default_model,
     seed_starter_agents, update_agent,
     create_conversation, get_conversation, list_conversations, load_messages, save_message,
+    clear_history,
     save_plan_version, list_plan_versions, restore_plan_version,
-    ollama_get_provider, ollama_set_provider, ollama_get_api_key, ollama_set_api_key,
-    write_file, read_file,
+    ollama_get_provider, ollama_set_provider, ollama_has_api_key, ollama_set_api_key,
+    save_text_file, load_text_file,
     add_template_source, list_template_sources, fetch_templates, install_template,
     list_installed_templates,
 };
@@ -17,6 +18,8 @@ use tauri::Manager;
 
 mod commands;
 mod db;
+mod plan_schema;
+mod secrets;
 
 fn app_data_dir() -> Result<PathBuf, String> {
     if cfg!(target_os = "windows") {
@@ -44,6 +47,7 @@ pub fn run() {
       let data_dir = app_data_dir().expect("Failed to resolve app data directory");
       let db_path = data_dir.join("opifex.db");
       let db_state = init_db(&db_path).expect("Failed to initialize database");
+      secrets::migrate_api_keys(&db_state);
       app.manage(db_state);
       Ok(())
     })
@@ -65,18 +69,19 @@ pub fn run() {
       ollama_set_default_model,
       ollama_get_provider,
       ollama_set_provider,
-      ollama_get_api_key,
+      ollama_has_api_key,
       ollama_set_api_key,
       create_conversation,
       get_conversation,
       list_conversations,
       load_messages,
       save_message,
+      clear_history,
       save_plan_version,
       list_plan_versions,
       restore_plan_version,
-      write_file,
-      read_file,
+      save_text_file,
+      load_text_file,
       add_template_source,
       list_template_sources,
       fetch_templates,

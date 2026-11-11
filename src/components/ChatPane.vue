@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { PropType } from 'vue';
-import type { AgentListItem, Message, TemplateEntry, TemplateSource, InstalledTemplate } from '@/types/agent';
+import type { AgentListItem, Conversation, Message, TemplateEntry, TemplateSource, InstalledTemplate } from '@/types/agent';
+import { migratePlan } from '@/lib/planSchema';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 
-defineProps({
+const props = defineProps({
   messages: { type: Array as PropType<Message[]>, required: true },
   streaming: { type: Boolean, required: true },
   streamingMsgId: { type: String, required: true },
@@ -18,10 +19,15 @@ defineProps({
   marketplaceTemplatesProp: { type: Array as PropType<TemplateEntry[]>, required: false, default: () => [] },
   marketplaceLoadingProp: { type: Boolean as PropType<boolean>, required: false, default: false },
   selectedSourceIdProp: { type: [String, null] as PropType<string | null>, required: false, default: null },
+  conversationsProp: { type: Array as PropType<Conversation[]>, required: false, default: () => [] },
+  transcriptProp: { type: Array as PropType<Message[] | null>, required: false, default: null },
+  transcriptTitleProp: { type: String, required: false, default: '' },
+  transcriptConversationIdProp: { type: [String, null] as PropType<string | null>, required: false, default: null },
 });
 
 const emit = defineEmits([
-  'send', 'build', 'retry', 'new-conversation',
+  'send', 'retry', 're-draft', 'new-conversation',
+  'open-transcript', 'close-transcript', 'clear-history',
   'select-agent', 'create-agent', 'rename-agent', 'duplicate-agent',
   'export-agent', 'delete-agent',
   'add-template-source', 'load-template-sources',
@@ -38,7 +44,7 @@ function adjustHeight() {
 }
 
 async function handleSend() {
-  if (!newMessage.value.trim()) return;
+  if (!props.interviewing || !newMessage.value.trim()) return;
   emit('send', newMessage.value);
   newMessage.value = '';
   if (textareaRef.value) {
@@ -46,13 +52,67 @@ async function handleSend() {
   }
 }
 
-async function handleBuild() {
-  emit('build');
-}
-
-async function handleRetry() {
+function handleRetry() {
   emit('retry');
 }
+
+// Re-draft clears the plan, so it takes two clicks.
+const reDraftArmed = ref(false);
+let reDraftTimer: ReturnType<typeof setTimeout> | null = null;
+
+function handleReDraft() {
+  if (!reDraftArmed.value) {
+    reDraftArmed.value = true;
+    if (reDraftTimer) clearTimeout(reDraftTimer);
+    reDraftTimer = setTimeout(() => {
+      reDraftArmed.value = false;
+    }, 4000);
+    return;
+  }
+  if (reDraftTimer) clearTimeout(reDraftTimer);
+  reDraftArmed.value = false;
+  emit('re-draft');
+}
+
+// Clearing history deletes every transcript for the agent, so it takes two clicks.
+const clearArmed = ref(false);
+let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
+const readOnly = computed(() => props.transcriptProp !== null);
+const displayMessages = computed(() => props.transcriptProp ?? props.messages);
+
+function handleHistoryChange(event: Event) {
+  const id = (event.target as HTMLSelectElement).value;
+  if (!id) {
+    emit('close-transcript');
+    return;
+  }
+  emit('open-transcript', id);
+}
+
+function handleClearHistory() {
+  if (!clearArmed.value) {
+    clearArmed.value = true;
+    if (clearTimer) clearTimeout(clearTimer);
+    clearTimer = setTimeout(() => {
+      clearArmed.value = false;
+    }, 4000);
+    return;
+  }
+  if (clearTimer) clearTimeout(clearTimer);
+  clearArmed.value = false;
+  emit('clear-history');
+}
+
+/** Chains a turn produced, shown against each turn in the read-only transcript. */
+function planChainCount(plan: unknown): number {
+  return plan ? migratePlan(plan).chains.length : 0;
+}
+
+onBeforeUnmount(() => {
+  if (reDraftTimer) clearTimeout(reDraftTimer);
+  if (clearTimer) clearTimeout(clearTimer);
+});
 
 function handleKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -84,19 +144,42 @@ function formatTime(iso: string): string {
         <div>
           <h2>{{ currentAgentName || 'Oppy' }}</h2>
           <div class="chat-subtitle">
-            <template v-if="interviewing">Interview mode — Oppy is asking questions</template>
-            <template v-else-if="streaming">Building agent...</template>
-            <template v-else-if="buildError">Build failed — check error or retry</template>
-            <template v-else>Agent built — plan ready in panel</template>
+            <template v-if="readOnly">Reading a past intake — read-only</template>
+            <template v-else-if="!interviewing">Plan is yours — Oppy is read-only</template>
+            <template v-else-if="streaming">Oppy is drafting the plan…</template>
+            <template v-else-if="buildError">Draft failed — retry or keep editing in the canvas</template>
+            <template v-else>Intake — Oppy is drafting, you own the canvas</template>
           </div>
         </div>
       </div>
       <div class="chat-actions">
-        <button v-if="currentAgentName" class="btn-new-chat" @click="emit('new-conversation')" title="Start a fresh conversation">New Chat</button>
-        <button v-if="interviewing && modelWarmedUp" class="btn-primary" @click="handleBuild">Build Agent</button>
-        <button v-if="interviewing && !modelWarmedUp" class="btn-primary" disabled>Warming up…</button>
-        <button v-if="!interviewing && buildError" class="btn-retry" @click="handleRetry">Retry</button>
-        <span v-if="!interviewing && buildError" class="build-error">{{ buildError }}</span>
+        <select
+          v-if="currentAgentName && conversationsProp.length"
+          class="history-select"
+          :value="transcriptConversationIdProp ?? ''"
+          :disabled="streaming"
+          aria-label="Intake history"
+          @change="handleHistoryChange"
+        >
+          <option value="">Current intake</option>
+          <option v-for="conv in conversationsProp" :key="conv.id" :value="conv.id">{{ conv.title }}</option>
+        </select>
+        <button
+          v-if="currentAgentName && conversationsProp.length"
+          class="btn-new-chat"
+          @click="handleClearHistory"
+          title="Deletes every intake transcript for this agent; the plan is not touched"
+        >{{ clearArmed ? 'Confirm clear' : 'Clear history' }}</button>
+        <button v-if="currentAgentName && interviewing" class="btn-new-chat" @click="emit('new-conversation')" title="Start a fresh intake conversation">New Chat</button>
+        <button
+          v-if="!interviewing"
+          class="btn-new-chat"
+          @click="handleReDraft"
+          title="This clears the plan and starts a fresh intake"
+        >{{ reDraftArmed ? 'Confirm re-draft' : 'Re-draft' }}</button>
+        <button v-if="!modelWarmedUp" class="btn-primary" disabled>Warming up…</button>
+        <button v-if="interviewing && buildError" class="btn-retry" @click="handleRetry">Retry</button>
+        <span v-if="interviewing && buildError" class="build-error">{{ buildError }}</span>
       </div>
     </div>
 
@@ -124,7 +207,7 @@ function formatTime(iso: string): string {
 
     <div class="chat-messages" v-if="currentAgentName">
       <div
-        v-for="msg of messages"
+        v-for="msg of displayMessages"
         :key="msg.id"
         class="message"
         :class="[msg.role, { 'is-streaming': msg.id === streamingMsgId && streaming }]"
@@ -134,33 +217,14 @@ function formatTime(iso: string): string {
         </div>
         <div class="message-content">
           <div class="message-text">{{ msg.content }}</div>
-          <div v-if="msg.turnPlanJson" class="message-plan-card">
-            <div class="plan-card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="12 2 2 7 12 12 22 7 12 2"/>
-                <polyline points="2 17 12 22 22 17"/>
-                <polyline points="2 12 12 17 22 12"/>
-              </svg>
-              <span class="plan-card-title">Agent Plan</span>
-            </div>
-            <div v-if="msg.turnPlanJson.goal" class="plan-card-goal">
-              <strong>Goal:</strong> {{ msg.turnPlanJson.goal }}
-            </div>
-            <div v-if="msg.turnPlanJson.steps && msg.turnPlanJson.steps.length" class="plan-card-steps">
-              <strong>Steps ({{ msg.turnPlanJson.steps.length }}):</strong>
-              <ol class="plan-steps-preview">
-                <li v-for="(step, idx) in msg.turnPlanJson.steps.slice(0, 3)" :key="idx">{{ step.action }}</li>
-                <li v-if="msg.turnPlanJson.steps.length > 3" class="more-steps">
-                  + {{ msg.turnPlanJson.steps.length - 3 }} more steps (see Plan panel)
-                </li>
-              </ol>
-            </div>
+          <div v-if="readOnly && msg.turnPlanJson" class="turn-plan-note">
+            Plan after this turn: {{ planChainCount(msg.turnPlanJson) }} chains
           </div>
           <div class="message-meta">
             <span class="message-role">{{ msg.role === 'user' ? 'You' : 'Oppy' }}</span>
             <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
             <span
-              v-if="streaming && msg.id === streamingMsgId"
+              v-if="!readOnly && streaming && msg.id === streamingMsgId"
               class="streaming-indicator"
               role="status"
               aria-label="Oppy is responding"
@@ -173,17 +237,22 @@ function formatTime(iso: string): string {
       </div>
     </div>
 
-    <div class="chat-input-area" v-if="currentAgentName && modelWarmedUp">
+    <div v-if="readOnly" class="chat-readonly-bar">
+      <span class="disabled-label">“{{ transcriptTitleProp }}” — reading history does not change the plan.</span>
+      <button class="btn-retry" @click="emit('close-transcript')">Back to current</button>
+    </div>
+    <div class="chat-input-area" v-if="currentAgentName && modelWarmedUp && !readOnly">
       <textarea
         ref="textareaRef"
         v-model="newMessage"
-        placeholder="Tell Oppy what you want your agent to do…"
+        :placeholder="interviewing ? 'Tell Oppy what you want your agent to do…' : 'This plan is yours now — use Re-draft to hand it back to Oppy.'"
+        :disabled="!interviewing"
         rows="1"
         @keydown="handleKeyDown"
         @input="adjustHeight"
         class="chat-textarea"
       ></textarea>
-      <button class="btn-send" @click="handleSend" :disabled="streaming || !newMessage.trim()">Send</button>
+      <button class="btn-send" @click="handleSend" :disabled="!interviewing || streaming || !newMessage.trim()">Send</button>
     </div>
     <div v-if="currentAgentName && !modelWarmedUp" class="chat-input-disabled">
       <span class="disabled-label">Input disabled while model is warming up.</span>
@@ -241,8 +310,43 @@ function formatTime(iso: string): string {
 .chat-actions {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
   align-items: center;
+}
+
+.history-select {
+  max-width: 180px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--type-xs);
+}
+
+.chat-readonly-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface-hover);
+  flex-shrink: 0;
+}
+
+.chat-readonly-bar .disabled-label {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+}
+
+.turn-plan-note {
+  margin-top: var(--space-1);
+  font-size: var(--type-xs);
+  color: var(--text-muted);
 }
 
 .btn-new-chat {
@@ -263,33 +367,6 @@ function formatTime(iso: string): string {
 .btn-new-chat:hover {
   background: var(--surface-hover);
   border-color: var(--border-hover);
-}
-
-.btn-build {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--type-sm);
-  background: var(--primary);
-  color: var(--primary-fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  transition: background 0.2s, transform 0.1s;
-}
-
-.btn-build:hover:not(:disabled) {
-  background: var(--primary-hover);
-  border-color: var(--border-focus);
-}
-
-.btn-build:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.btn-build:disabled {
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  cursor: not-allowed;
 }
 
 .btn-retry {
@@ -342,31 +419,6 @@ function formatTime(iso: string): string {
 
 .warming-up p {
   font-size: var(--type-sm);
-}
-
-.agent-library-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 0;
-  padding-bottom: 4.5rem;
-}
-
-.empty-state {
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.empty-icon {
-  width: 48px;
-  height: 48px;
-  color: var(--text-muted);
-  margin: 0 auto var(--space-3);
-}
-
-.empty-state p {
-  font-size: var(--type-base);
-  margin: 0;
 }
 
 .chat-messages {
@@ -577,50 +629,6 @@ function formatTime(iso: string): string {
 
 .disabled-label {
   display: inline-block;
-}
-
-.message-plan-card {
-  margin-top: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--primary-bg);
-  border: 1px solid var(--primary);
-  border-radius: var(--radius-md);
-  font-size: var(--type-sm);
-  color: var(--text-primary);
-}
-
-.plan-card-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-weight: 600;
-  color: var(--primary);
-  margin-bottom: var(--space-2);
-}
-
-.plan-card-goal {
-  margin-bottom: var(--space-2);
-  line-height: 1.5;
-}
-
-.plan-card-steps strong {
-  display: block;
-  margin-bottom: var(--space-1);
-}
-
-.plan-steps-preview {
-  margin: 0;
-  padding-left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.more-steps {
-  list-style-type: none;
-  font-style: italic;
-  color: var(--text-secondary);
-  margin-top: var(--space-1);
 }
 
 @keyframes fadeIn {

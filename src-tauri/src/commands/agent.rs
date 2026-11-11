@@ -1,4 +1,5 @@
 use crate::db::DbState;
+use crate::plan_schema::validate_agent_spec;
 use rusqlite::Connection;
 use rusqlite::params;
 use rusqlite::types::Type;
@@ -25,20 +26,6 @@ fn seed_file_content(name: &str) -> Option<&'static str> {
         "content_writer_agent.json" => Some(CONTENT_WRITER_AGENT_JSON),
         _ => None,
     }
-}
-
-fn validate_agent_spec(spec: &Value) -> Result<(), String> {
-    let goal = spec
-        .get("goal")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Invalid agent: missing required field 'goal'".to_string())?;
-    if goal.trim().is_empty() {
-        return Err("Invalid agent: field 'goal' must not be empty".to_string());
-    }
-    if spec.get("steps").is_none() {
-        return Err("Invalid agent: missing required field 'steps'".to_string());
-    }
-    Ok(())
 }
 
 fn user_agents_dir() -> Result<PathBuf, String> {
@@ -253,7 +240,23 @@ pub fn update_agent(
 #[tauri::command]
 pub fn delete_agent(state: State<'_, DbState>, id: String) -> Result<bool, String> {
     let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
-    let changes = conn.execute("DELETE FROM agents WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+
+    // Conversations, their messages and the plan versions all belong to the agent.
+    // Databases created before the foreign keys carried ON DELETE CASCADE still need
+    // this cleanup, so children are deleted explicitly, deepest first.
+    conn.execute(
+        "DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE agent_id = ?1)",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM conversations WHERE agent_id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM plan_versions WHERE agent_id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+
+    let changes = conn
+        .execute("DELETE FROM agents WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
     Ok(changes > 0)
 }
 
@@ -268,17 +271,7 @@ pub fn export_agent(state: State<'_, DbState>, id: String) -> Result<String, Str
 pub fn import_agent(state: State<'_, DbState>, agent_json: String) -> Result<Agent, String> {
     let mut agent: Agent = serde_json::from_str(&agent_json).map_err(|e| e.to_string())?;
 
-    // Validate required AgentPlan fields
-    let spec_value = &agent.spec_json;
-    let goal = spec_value.get("goal")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Invalid agent: missing required field 'goal'".to_string())?;
-    if goal.trim().is_empty() {
-        return Err("Invalid agent: field 'goal' must not be empty".to_string());
-    }
-    if spec_value.get("steps").is_none() {
-        return Err("Invalid agent: missing required field 'steps'".to_string());
-    }
+    validate_agent_spec(&agent.spec_json).map_err(|e| format!("Invalid agent: {}", e))?;
 
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();

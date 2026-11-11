@@ -18,6 +18,8 @@ pub fn init_db(db_path: &Path) -> Result<DbState, Box<dyn std::error::Error>> {
 pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         r#"
+        PRAGMA foreign_keys = ON;
+
         CREATE TABLE IF NOT EXISTS agents (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -34,7 +36,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             agent_id TEXT NOT NULL,
             title TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            FOREIGN KEY (agent_id) REFERENCES agents(id)
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -44,7 +46,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             content TEXT NOT NULL,
             turn_plan_json TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS settings (
@@ -58,7 +60,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
             label TEXT,
             spec_json TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            FOREIGN KEY (agent_id) REFERENCES agents(id)
+            FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS template_sources (
@@ -77,5 +79,17 @@ pub fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
         "#,
     )?;
+
+    // Foreign keys were declared but never enforced, so agents deleted by older
+    // builds left their conversations, messages and plan versions behind. Sweep
+    // any such orphans on startup; the deletes are idempotent and cheap.
+    conn.execute_batch(
+        r#"
+        DELETE FROM messages WHERE conversation_id NOT IN (SELECT id FROM conversations);
+        DELETE FROM conversations WHERE agent_id NOT IN (SELECT id FROM agents);
+        DELETE FROM plan_versions WHERE agent_id NOT IN (SELECT id FROM agents);
+        "#,
+    )?;
+
     Ok(())
 }
