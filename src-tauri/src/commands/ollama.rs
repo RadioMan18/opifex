@@ -142,9 +142,9 @@ pub fn ollama_pull_model(model: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn ollama_chat_stream(
     app: AppHandle,
+    state: State<'_, DbState>,
     provider: String,
     model: String,
-    api_key: Option<String>,
     messages: Vec<OllamaMessage>,
 ) -> Result<(), String> {
     let provider: LlmProvider = provider.parse().map_err(|e: String| e.to_string())?;
@@ -154,11 +154,13 @@ pub async fn ollama_chat_stream(
             ollama_chat_stream_impl(app, model, messages).await
         }
         LlmProvider::OpenAI => {
-            let key = api_key.ok_or_else(|| "OpenAI API key not configured".to_string())?;
+            let key = get_api_key(state, "openai".to_string())?
+                .ok_or_else(|| "OpenAI API key not configured".to_string())?;
             openai_chat_stream_impl(app, model, key, messages).await
         }
         LlmProvider::Anthropic => {
-            let key = api_key.ok_or_else(|| "Anthropic API key not configured".to_string())?;
+            let key = get_api_key(state, "anthropic".to_string())?
+                .ok_or_else(|| "Anthropic API key not configured".to_string())?;
             anthropic_chat_stream_impl(app, model, key, messages).await
         }
     }
@@ -628,12 +630,22 @@ fn anthropic_chat_impl(model: String, messages: Vec<OllamaMessage>, api_key: Str
     Ok(OllamaChatOutput { content })
 }
 
+fn api_key_name(provider: &str) -> Result<&'static str, String> {
+    match provider {
+        "openai" => Ok("openai_api_key"),
+        "anthropic" => Ok("anthropic_api_key"),
+        _ => Err(format!("Unknown provider: {}", provider)),
+    }
+}
+
+/// Reads a key for Rust's own use. The OS credential store is authoritative; the
+/// settings table is only consulted for databases written by earlier versions.
 fn get_api_key(state: State<'_, DbState>, provider: String) -> Result<Option<String>, String> {
-    let key_name = match provider.as_str() {
-        "openai" => "openai_api_key",
-        "anthropic" => "anthropic_api_key",
-        _ => return Err(format!("Unknown provider: {}", provider)),
-    };
+    let key_name = api_key_name(&provider)?;
+
+    if let Some(secret) = crate::secrets::get_secret(key_name) {
+        return Ok(Some(secret));
+    }
 
     let conn = &*state.conn.lock().unwrap();
     let mut stmt = conn
@@ -705,25 +717,11 @@ pub fn ollama_set_provider(state: State<'_, DbState>, provider: String) -> Resul
     Ok(())
 }
 
+/// Reports whether a key is configured without ever handing the key itself to the
+/// webview.
 #[tauri::command]
-pub fn ollama_get_api_key(state: State<'_, DbState>, provider: String) -> Result<Option<String>, String> {
-    let key_name = match provider.as_str() {
-        "openai" => "openai_api_key",
-        "anthropic" => "anthropic_api_key",
-        _ => return Err(format!("Unknown provider: {}", provider)),
-    };
-
-    let conn = &*state.conn.lock().unwrap();
-    let mut stmt = conn
-        .prepare("SELECT value FROM settings WHERE key = ?1")
-        .map_err(|e| e.to_string())?;
-
-    let api_key: Option<String> = stmt
-        .query_row(params![key_name], |row| row.get(0))
-        .optional()
-        .map_err(|e| e.to_string())?;
-
-    Ok(api_key)
+pub fn ollama_has_api_key(state: State<'_, DbState>, provider: String) -> Result<bool, String> {
+    Ok(get_api_key(state, provider)?.is_some())
 }
 
 #[tauri::command]
@@ -732,11 +730,15 @@ pub fn ollama_set_api_key(
     input: SetApiKeyInput,
 ) -> Result<(), String> {
     let _: LlmProvider = input.provider.parse().map_err(|e: String| e.to_string())?;
-    let key_name = match input.provider.as_str() {
-        "openai" => "openai_api_key",
-        "anthropic" => "anthropic_api_key",
-        _ => return Err(format!("Unknown provider: {}", input.provider)),
-    };
+    let key_name = api_key_name(&input.provider)?;
+
+    // The OS credential store is the preferred home. Only platforms without one
+    // fall back to the (plaintext) settings table.
+    if crate::secrets::set_secret(key_name, &input.api_key).is_ok() {
+        let conn = &*state.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = conn.execute("DELETE FROM settings WHERE key = ?1", params![key_name]);
+        return Ok(());
+    }
 
     let conn = &*state.conn.lock().unwrap();
     conn.execute(

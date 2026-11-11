@@ -20,7 +20,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; media-src 'self'; worker-src 'self' blob:; manifest-src 'self'",
+      "devCsp": "default-src 'self' http://localhost:5173; base-uri 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline' http://localhost:5173; img-src 'self' data: blob: http://localhost:5173; font-src 'self' data: http://localhost:5173; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173 http://localhost:5173; media-src 'self' http://localhost:5173; worker-src 'self' blob:; manifest-src 'self'"
     }
   },
   "bundle": {

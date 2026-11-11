@@ -94,6 +94,14 @@ fn row_to_installed_template(row: &rusqlite::Row<'_>) -> rusqlite::Result<Instal
     })
 }
 
+fn ensure_http_url(url: &str, label: &str) -> Result<(), String> {
+    if url.starts_with("https://") || url.starts_with("http://") {
+        Ok(())
+    } else {
+        Err(format!("{} must be an http(s) URL: {}", label, url))
+    }
+}
+
 fn sha256_hex(data: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -107,6 +115,8 @@ pub fn add_template_source(
     state: State<'_, DbState>,
     input: AddTemplateSourceInput,
 ) -> Result<TemplateSource, String> {
+    ensure_http_url(&input.url, "Template source URL")?;
+
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -158,6 +168,7 @@ pub async fn fetch_templates(state: State<'_, DbState>, source_id: String) -> Re
     };
 
     let source = source.ok_or_else(|| format!("Template source not found: {}", source_id))?;
+    ensure_http_url(&source.url, "Template source URL")?;
 
     if !source.enabled {
         return Err(format!("Template source is disabled: {}", source.name));
@@ -216,6 +227,7 @@ pub async fn install_template(
             .map_err(|e| e.to_string())?;
 
         let source = source.ok_or_else(|| format!("Template source not found: {}", input.source_id))?;
+        ensure_http_url(&source.url, "Template source URL")?;
 
         if !source.enabled {
             return Err(format!("Template source is disabled: {}", source.name));
@@ -266,6 +278,13 @@ pub async fn install_template(
     let spec_json = if let Some(spec) = entry.spec_json {
         spec
     } else if let Some(download_url) = &entry.download_url {
+        if !download_url.starts_with("https://") {
+            return Err(format!(
+                "Template download URL must use HTTPS: {}",
+                download_url
+            ));
+        }
+
         let resp = client
             .get(download_url)
             .timeout(std::time::Duration::from_secs(60))
@@ -277,16 +296,28 @@ pub async fn install_template(
             format!("Failed to read template download: {}", e)
         })?;
 
-        // Verify checksum
-        if let Some(expected_checksum) = &entry.checksum {
-            let actual = sha256_hex(&bytes);
-            let expected = expected_checksum.strip_prefix("sha256:").unwrap_or(expected_checksum);
-            if actual != expected {
-                return Err(format!(
-                    "Checksum mismatch for template {}: expected {}, got {}",
-                    input.template_id, expected, actual
-                ));
-            }
+        if bytes.len() > 2 * 1024 * 1024 {
+            return Err(format!(
+                "Template {} download exceeds the 2 MiB limit",
+                input.template_id
+            ));
+        }
+
+        // A checksum is mandatory: without one, any catalog could hand the app an
+        // arbitrary spec and nothing would detect the substitution.
+        let expected_checksum = entry.checksum.as_ref().ok_or_else(|| {
+            format!(
+                "Template {} has no checksum; refusing to install unverified content",
+                input.template_id
+            )
+        })?;
+        let actual = sha256_hex(&bytes);
+        let expected = expected_checksum.strip_prefix("sha256:").unwrap_or(expected_checksum);
+        if actual != expected {
+            return Err(format!(
+                "Checksum mismatch for template {}: expected {}, got {}",
+                input.template_id, expected, actual
+            ));
         }
 
         // Try to parse as JSON (agent spec or zip manifest)
@@ -298,16 +329,9 @@ pub async fn install_template(
         return Err(format!("Template {} has no spec_json or download_url", input.template_id));
     };
 
-    // Validate required AgentPlan fields
-    let goal = spec_json.get("goal")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "Invalid template: missing required field 'goal'".to_string())?;
-    if goal.trim().is_empty() {
-        return Err("Invalid template: field 'goal' must not be empty".to_string());
-    }
-    if spec_json.get("steps").is_none() {
-        return Err("Invalid template: missing required field 'steps'".to_string());
-    }
+    // Validate the template spec (schema v2 chains, or a legacy flat plan)
+    crate::plan_schema::validate_agent_spec(&spec_json)
+        .map_err(|e| format!("Invalid template: {}", e))?;
 
     // Phase 3: Write to DB synchronously (lock acquired and released within this block)
     let id = Uuid::new_v4().to_string();
