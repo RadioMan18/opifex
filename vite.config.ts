@@ -17,8 +17,16 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Cargo writes build artifacts while the dev server runs, and watching
+    // them throws EBUSY on Windows. Ignore the whole Rust tree plus the
+    // directories Vite would otherwise watch by default.
     watch: {
-      ignored: ['**/src-tauri/target/**'],
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/target/**',
+        '**/src-tauri/**',
+      ],
     },
   },
   build: {
