@@ -1,0 +1,18 @@
+/*
+ * Tailwind v4 entry point.
+ *
+ * Only the theme and utility layers are imported. The app's own design system
+ * lives in unlayered CSS (App.vue and the scoped component styles), and unlayered
+ * rules outrank every cascade layer — so these imports can add utilities for new
+ * markup without restyling anything that already exists.
+ *
+ * Preflight is deliberately omitted: it resets headings, lists, buttons and form
+ * controls that the current UI styles by hand. To opt into that reset, add one
+ * line below the theme import:
+ *
+ *   @import "tailwindcss/preflight.css" layer(base);
+ */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
