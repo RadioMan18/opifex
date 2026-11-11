@@ -18,7 +18,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      ignored: ['**/src-tauri/target/**'],
+      ignored: ['**/node_modules/**', '**/.git/**', '**/target/**', '**/src-tauri/**'],
     },
   },
   build: {

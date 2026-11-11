@@ -331,10 +331,10 @@ Acceptance criteria:
 
 ### P4.1: Add motion deliberately
 
-- [ ] Use subtle animation for panel transitions, selection states, and loading feedback
-- [ ] Keep motion restrained and purposeful
-- [ ] Avoid decorative or distracting movement
-- [ ] Respect reduced-motion preferences
+- [x] Use subtle animation for panel transitions, selection states, and loading feedback
+- [x] Keep motion restrained and purposeful
+- [x] Avoid decorative or distracting movement
+- [x] Respect reduced-motion preferences
 
 Files likely involved:
 - shared motion settings
@@ -346,11 +346,11 @@ Acceptance criteria:
 
 ### P4.2: Accessibility pass
 
-- [ ] Verify text contrast in all states
-- [ ] Improve focus ring visibility and keyboard flow
-- [ ] Ensure all actionable controls have clear labels
-- [ ] Test keyboard navigation for top bar, library, canvas, and inspector
-- [ ] Confirm reduced-motion compatibility
+- [x] Verify text contrast in all states
+- [x] Improve focus ring visibility and keyboard flow
+- [x] Ensure all actionable controls have clear labels
+- [x] Test keyboard navigation for top bar, library, canvas, and inspector
+- [x] Confirm reduced-motion compatibility
 
 Files likely involved:
 - all major components
@@ -363,10 +363,10 @@ Acceptance criteria:
 
 ### P4.3: Reduce density and increase clarity
 
-- [ ] Remove unnecessary controls from the visible main shell
-- [ ] Reduce noise in the right-side action rail
-- [ ] Keep each surface visually calm enough to support decision-making
-- [ ] Ensure spacing supports scanning rather than crowding
+- [x] Remove unnecessary controls from the visible main shell
+- [x] Reduce noise in the right-side action rail
+- [x] Keep each surface visually calm enough to support decision-making
+- [x] Ensure spacing supports scanning rather than crowding
 
 Files likely involved:
 - all app shell and panel layout code

@@ -24,8 +24,9 @@
           :key="block.id"
           class="block-item"
           draggable="true"
-          @dragstart="(e) => onDragStart(e, block)"
-          @dragend="onDragEnd"
+          @dragstart="(e) => { onDragStart(e, block); $emit('block-drag-start', block); }"
+          @dragend.stop
+          style="cursor: grab; touch-action: none; user-select: none;"
         >
           <div class="block-card">
             <div class="block-card-header">
@@ -114,15 +115,12 @@ function blockColor(kind: BlockKind): string {
 }
 
 function onDragStart(event: DragEvent, block: BlockDefinition) {
-  event.dataTransfer?.setData('application/opifex-block', JSON.stringify(block));
-  // Standard formats survive the OS drag pipeline more reliably than a custom
-  // one, so carry the id as plain text too.
-  event.dataTransfer?.setData('text/plain', block.id);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('application/opifex-block', JSON.stringify(block));
+    event.dataTransfer.setData('text/plain', block.name);
+  }
   emit('block-drag-start', block);
-}
-
-function onDragEnd() {
-  // No-op for now; drag visual reset handled by browser
 }
 </script>
 
