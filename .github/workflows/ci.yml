@@ -74,7 +74,7 @@ jobs:
         run: mkdir -p dist
 
       - name: Check Rust compilation
-        run: cargo check --all-targets
+        run: cargo check --all-targets --locked
 
       - name: Run Rust tests
-        run: cargo test
+        run: cargo test --locked
