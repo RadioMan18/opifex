@@ -32,7 +32,8 @@
     </div>
 
     <div v-if="runError" class="mt-3 p-2.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-      {{ runError }}
+      <p class="font-semibold mb-1">Run failed</p>
+      <p class="whitespace-pre-wrap break-words">{{ runError }}</p>
     </div>
 
     <div v-if="runResult" class="mt-3 p-2.5 rounded bg-green-500/10 border border-green-500/20 text-green-400 text-xs">
@@ -52,6 +53,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { runAgentGraph } from '@/services/ipc';
+import { flushGraphSave } from '@/services/graphSync';
 import { useGraphStore } from '@/stores/graphStore';
 import { deriveRunTrace, type RunOutcomeStatus } from '@/services/runTrace';
 
@@ -74,21 +76,52 @@ async function runAgent() {
   runError.value = null;
   runResult.value = null;
 
+  if ((graphStore.graph?.nodes.length ?? 0) === 0) {
+    isRunning.value = false;
+    runStatus.value = 'failed';
+    runError.value = 'Add at least one block to the canvas before running.';
+    return;
+  }
+
   try {
+    // A run loads the agent row, so the canvas has to be on disk first.
+    const saved = await flushGraphSave();
+    if (!saved) {
+      runStatus.value = 'failed';
+      runError.value =
+        'Could not save the canvas, so the run would execute an older graph. Check the error banner and try again.';
+      return;
+    }
+
     const run = await runAgentGraph({
       agent_id: props.agentId,
-      mode: 'mock', // Start with mock mode for safety
+      mode: 'mock', // Node execution is stubbed in the engine; the graph walk is real.
     });
     runResult.value = run;
-    runStatus.value = run.status;
+    // Rust serialises RunStatus as PascalCase; the control speaks lowercase.
+    runStatus.value = String(run.status ?? '').toLowerCase();
     paint(run.status === 'cancelled' ? 'cancelled' : 'succeeded');
   } catch (e: any) {
-    runError.value = e.message || 'Unknown error';
+    runError.value = describeRunError(e?.message || String(e));
     runStatus.value = 'failed';
     paint('failed', runError.value);
   } finally {
     isRunning.value = false;
   }
+}
+
+// The backend names the layer that failed; the panel should say what to do next.
+function describeRunError(message: string): string {
+  if (message.includes('Failed to parse agent graph')) {
+    return (
+      'The stored agent spec is not a v2 graph, so there is nothing to execute. Draw the graph and run again.\n' +
+      message
+    );
+  }
+  if (message.includes('Agent not found')) {
+    return 'This agent is no longer in the library.\n' + message;
+  }
+  return message;
 }
 
 // The backend returns only the run header, so the canvas is painted from the

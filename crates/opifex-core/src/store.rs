@@ -42,7 +42,9 @@ pub struct Run {
 /// Execution mode for a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RunMode {
+    #[serde(alias = "live")]
     Live,
+    #[serde(alias = "mock")]
     Mock,
 }
 
@@ -162,5 +164,21 @@ impl NodeRun {
             started_at: None,
             ended_at: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod run_mode_compat_tests {
+    use super::RunMode;
+
+    #[test]
+    fn accepts_lowercase_mode_from_the_webview() {
+        let mode: RunMode = serde_json::from_str(r#""mock""#).expect("mock must parse");
+        assert_eq!(mode, RunMode::Mock);
+        let mode: RunMode = serde_json::from_str(r#""live""#).expect("live must parse");
+        assert_eq!(mode, RunMode::Live);
+        // Values written before the aliases existed keep working.
+        let mode: RunMode = serde_json::from_str(r#""Mock""#).expect("Mock must parse");
+        assert_eq!(mode, RunMode::Mock);
     }
 }

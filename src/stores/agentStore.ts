@@ -11,7 +11,9 @@ import type {
   PlanVersion,
   TemplateEntry,
   TemplateSource,
+  AgentGraph,
 } from '@/types/agent';
+import { isAgentGraph } from '@/types/agent';
 import {
   createAgent as ipcCreateAgent,
   getAgent as ipcGetAgent,
@@ -59,6 +61,8 @@ interface AgentState {
   provider: string | null;
   apiKeys: Record<string, string>;
   apiKeyStatus: Record<string, boolean>;
+  graphSaveError: string | null;
+  graphSavedAt: string | null;
   loading: boolean;
   streaming: boolean;
   streamingMsgId: string | null;
@@ -85,6 +89,8 @@ const state = reactive<AgentState>({
   provider: null,
   apiKeys: {},
   apiKeyStatus: {},
+  graphSaveError: null,
+  graphSavedAt: null,
   loading: false,
   streaming: false,
   streamingMsgId: null,
@@ -320,6 +326,34 @@ export function useAgentStore() {
       state.rawStreamingContent = null;
     } catch (err: any) {
       state.error = err?.message || String(err);
+    }
+  }
+
+  // The canvas is the agent: saving it is what a run reads back from SQLite.
+  async function saveAgentGraph(graph: AgentGraph): Promise<boolean> {
+    const agent = state.currentAgent;
+    if (!agent) return false;
+
+    try {
+      const updated = await ipcUpdateAgent(agent.id, {
+        name: null,
+        description: null,
+        specJson: graph,
+        model: null,
+        isStarter: null,
+      });
+      if (state.currentAgent?.id === agent.id) {
+        // Mutate in place: replacing the object would make the canvas reload
+        // from the row just written and drop the user's selection.
+        state.currentAgent.specJson = graph;
+        state.currentAgent.updatedAt = updated.updatedAt;
+      }
+      state.graphSaveError = null;
+      state.graphSavedAt = updated.updatedAt;
+      return true;
+    } catch (err: any) {
+      state.graphSaveError = err?.message || String(err);
+      return false;
     }
   }
 
@@ -874,7 +908,9 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
         });
       }
 
-      if (state.currentAgent) {
+      // A canvas agent stores its graph in spec_json; an interview plan must
+      // not quietly replace the graph a run would execute.
+      if (state.currentAgent && !isAgentGraph(state.currentAgent.specJson)) {
         ipcUpdateAgent(state.currentAgent.id, {
           name: null,
           description: null,
@@ -1105,6 +1141,7 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     setApiKey,
     pullModel,
     selectAgent,
+    saveAgentGraph,
     createNewAgent,
     createNewConversation,
     sendMessage,
