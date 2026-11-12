@@ -185,7 +185,7 @@ describe('useAgentStore', () => {
       expect(store.state.messages[1].role).toBe('assistant')
       expect(store.state.streaming).toBe(true)
 
-      const [, model, , messages] = mockOllamaChatStream.mock.calls[0]
+      const [, model, messages] = mockOllamaChatStream.mock.calls[0]
       expect(model).toBe('dolphin-llama3:8b')
       expect(messages.map(message => message.content)).toContain('Hello')
       expect(messages.some(message => message.role === 'assistant' && !message.content)).toBe(false)
@@ -210,7 +210,7 @@ describe('useAgentStore', () => {
         createdAt: '2024-01-01T00:00:00Z',
       })
       mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: plan })
-      mockOllamaChatStream.mockImplementation(async (_provider, _model, _apiKey, _messages, callbacks) => {
+      mockOllamaChatStream.mockImplementation(async (_provider, _model, _messages, callbacks) => {
         callbacks.onChunk(JSON.stringify({ response, plan }))
         callbacks.onEnd()
         return () => {}
@@ -265,7 +265,7 @@ describe('useAgentStore', () => {
         createdAt: '2024-01-01T00:00:00Z',
       })
       mockUpdateAgent.mockResolvedValue({ ...mockAgent, specJson: { goal: 'Research business productivity apps on the internet and rank them based on GitHub stars and Reddit/G/GititHubHub comments from the last 1 155 days', steps: [{ action: 'Clarify research scope and questions', inputs: [], requiresApproval: false }], tools: ['web_search'], knowledgeSources: [], triggers: [], outputs: ['research_report'] } })
-      mockOllamaChatStream.mockImplementation(async (_provider, _model, _apiKey, _messages, callbacks) => {
+      mockOllamaChatStream.mockImplementation(async (_provider, _model, _messages, callbacks) => {
         callbacks.onChunk(damagedResponse)
         callbacks.onEnd()
         return () => {}
@@ -392,7 +392,9 @@ describe('useAgentStore', () => {
       await store.setApiKey('openai', 'sk-test-key')
 
       expect(mockOllamaSetApiKey).toHaveBeenCalledWith('openai', 'sk-test-key')
-      expect(store.state.apiKeys.openai).toBe('sk-test-key')
+      // The key lives in the OS credential store; the webview keeps no copy.
+      expect(store.state.apiKeys.openai).toBe('')
+      expect(store.state.apiKeyStatus.openai).toBe(true)
     })
   })
 })

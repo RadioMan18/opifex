@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, onBeforeUnmount } from 'vue';
-import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
-import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
 import { useGraphStore } from '@/stores/graphStore';
 import ChatPane from '@/components/ChatPane.vue';
@@ -17,7 +15,7 @@ import SkillEditor from '@/components/inspector/SkillEditor.vue';
 import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
 import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 import RunControl from '@/components/RunControl.vue';
-import { writeFile as ipcWriteFile, isDesktopShell } from '@/services/ipc';
+import { saveTextFile as ipcSaveTextFile, loadTextFile as ipcLoadTextFile, isDesktopShell } from '@/services/ipc';
 import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
 const store = useAgentStore();
@@ -491,22 +489,16 @@ async function handleInstallMarketplaceTemplate(templateId: string, version: str
 }
 
 async function handleImportAgent() {
-  const filePath = await tauriOpenDialog({
-    multiple: false,
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  });
-
-  if (filePath && filePath.length > 0) {
-    try {
-      const content = await tauriReadFile(filePath[0]);
-      const text = new TextDecoder().decode(content);
+  try {
+    const text = await ipcLoadTextFile();
+    if (text) {
       const agent = await importAgent(text);
       if (agent) {
         await selectAgent(agent.id);
       }
-    } catch (err: any) {
-      state.error = err?.message || String(err);
     }
+  } catch (err: any) {
+    state.error = err?.message || String(err);
   }
 }
 
@@ -551,16 +543,10 @@ async function handleSaveVersion() {
     };
     const json = JSON.stringify(planExport, null, 2);
     const defaultName = `${currentAgent.value.name || 'agent'}-plan.json`;
-    const filePath = await tauriSaveDialog({
-      defaultPath: defaultName,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (filePath) {
-      try {
-        await ipcWriteFile(filePath, json);
-      } catch (err: any) {
-        state.error = err?.message || String(err);
-      }
+    try {
+      await ipcSaveTextFile(defaultName, json);
+    } catch (err: any) {
+      state.error = err?.message || String(err);
     }
   }
 

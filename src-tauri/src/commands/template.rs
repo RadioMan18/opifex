@@ -329,9 +329,6 @@ pub async fn install_template(
         return Err(format!("Template {} has no spec_json or download_url", input.template_id));
     };
 
-    // Validate the template spec (schema v2 chains, or a legacy flat plan)
-    crate::plan_schema::validate_agent_spec(&spec_json)
-        .map_err(|e| format!("Invalid template: {}", e))?;
 
     // Phase 3: Write to DB synchronously (lock acquired and released within this block)
     let id = Uuid::new_v4().to_string();

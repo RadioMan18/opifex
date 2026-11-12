@@ -31,7 +31,7 @@ import {
   ollamaSetDefaultModel as ipcOllamaSetDefaultModel,
   ollamaGetProvider as ipcOllamaGetProvider,
   ollamaSetProvider as ipcOllamaSetProvider,
-  ollamaGetApiKey as ipcOllamaGetApiKey,
+  ollamaHasApiKey as ipcOllamaHasApiKey,
   ollamaSetApiKey as ipcOllamaSetApiKey,
   createConversation as ipcCreateConversation,
   listConversations as ipcListConversations,
@@ -58,6 +58,7 @@ interface AgentState {
   defaultModel: string | null;
   provider: string | null;
   apiKeys: Record<string, string>;
+  apiKeyStatus: Record<string, boolean>;
   loading: boolean;
   streaming: boolean;
   streamingMsgId: string | null;
@@ -83,6 +84,7 @@ const state = reactive<AgentState>({
   defaultModel: null,
   provider: null,
   apiKeys: {},
+  apiKeyStatus: {},
   loading: false,
   streaming: false,
   streamingMsgId: null,
@@ -269,19 +271,21 @@ export function useAgentStore() {
     }
   }
 
-  async function getApiKey(provider: string): Promise<string | null> {
+  async function hasApiKey(provider: string): Promise<boolean> {
     try {
-      return await ipcOllamaGetApiKey(provider);
+      return await ipcOllamaHasApiKey(provider);
     } catch (err: any) {
       state.error = err?.message || String(err);
-      return null;
+      return false;
     }
   }
 
   async function setApiKey(provider: string, apiKey: string) {
     try {
       await ipcOllamaSetApiKey(provider, apiKey);
-      state.apiKeys[provider] = apiKey;
+      // The backend stores the key; never keep it in the webview.
+      state.apiKeys[provider] = '';
+      state.apiKeyStatus[provider] = true;
     } catch (err: any) {
       state.error = err?.message || String(err);
     }
@@ -482,7 +486,6 @@ export function useAgentStore() {
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
@@ -496,7 +499,6 @@ export function useAgentStore() {
       const cleanup = await ipcOllamaChatStream(
         provider,
         model,
-        apiKey,
         ollamaMessages,
         {
           onChunk: (chunk: string) => {
@@ -639,7 +641,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
@@ -668,7 +669,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       const cleanup = await ipcOllamaChatStream(
         provider,
         model,
-        apiKey,
         ollamaMessages,
         {
           onChunk: (chunk: string) => {
@@ -734,7 +734,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
 
     const provider = state.provider ?? 'ollama';
     const model = state.defaultModel ?? state.currentAgent.model;
-    const apiKey = state.apiKeys[provider] ?? null;
     const systemPrompt = buildSystemPrompt();
 
     const ollamaMessages: OllamaMessage[] = [
@@ -763,7 +762,6 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
       const cleanup = await ipcOllamaChatStream(
         provider,
         model,
-        apiKey,
         ollamaMessages,
         {
           onChunk: (chunk: string) => {
@@ -1103,7 +1101,7 @@ Double-quoted keys and valid JSON only. Never stutter or duplicate tokens.`;
     loadProvider,
     setProvider,
     setDefaultModel,
-    getApiKey,
+    hasApiKey,
     setApiKey,
     pullModel,
     selectAgent,
