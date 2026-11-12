@@ -11,6 +11,7 @@
 //! - Manage artifacts, messaging modes, setup steps
 //! - Apply Oppy edits
 
+use crate::commands::run_runtime::AppRuntime;
 use crate::db::DbState;
 use opifex_core::{
     store::{Run, RunMode, RunStatus},
@@ -20,6 +21,8 @@ use opifex_engine::ExecutionEngine;
 use rusqlite::params;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use serde_json::Value;
 use tauri::State;
 use uuid::Uuid;
@@ -32,6 +35,18 @@ use uuid::Uuid;
 pub struct RunAgentGraphInput {
     pub agent_id: String,
     pub mode: RunMode,
+    /// The trigger message for this run; it becomes the Entry Point's output.
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct RunReport {
+    #[serde(flatten)]
+    pub run: Run,
+    /// Node outputs keyed by "node_id:port_id", so the UI can show what the
+    /// graph actually produced.
+    pub outputs: HashMap<String, Value>,
 }
 
 #[derive(Deserialize)]
@@ -68,7 +83,7 @@ pub struct RunStatusDto {
 pub async fn run_agent_graph(
     db: State<'_, DbState>,
     input: RunAgentGraphInput,
-) -> Result<Run, String> {
+) -> Result<RunReport, String> {
     // Load the agent spec_json first (hold lock briefly)
     let spec_json: String = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
@@ -81,15 +96,27 @@ pub async fn run_agent_graph(
     };
 
     // Parse the graph from spec_json
-    let graph: AgentGraph = serde_json::from_str(&spec_json)
+    let mut graph: AgentGraph = serde_json::from_str(&spec_json)
         .map_err(|e| format!("Failed to parse agent graph: {}", e))?;
 
-    // Create execution engine and run (async, no mutex held)
-    let engine = ExecutionEngine::new(graph);
-    let run = engine.run_graph(input.mode).await
+    // The run input is the Entry Point's message; nothing else seeds a run.
+    if let Some(message) = input.message {
+        for node in graph.nodes.iter_mut().filter(|node| node.block_id == "builtin:input") {
+            node.parameters
+                .insert("message".to_string(), Value::String(message.clone()));
+        }
+    }
+
+    // Providers and tools are resolved once per run, outside the DB lock.
+    let runtime = Arc::new(AppRuntime::from_settings(&db));
+    let engine = ExecutionEngine::with_runtime(graph, runtime);
+
+    let run = engine
+        .run_graph(input.mode)
+        .await
         .map_err(|e| format!("Execution failed: {}", e))?;
 
-    Ok(run)
+    Ok(RunReport { run, outputs: engine.node_outputs().await })
 }
 
 #[tauri::command]

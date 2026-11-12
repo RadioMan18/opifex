@@ -3,7 +3,7 @@
 //! pinned data support, cancellation, and live/mock modes.
 
 use opifex_core::{
-    store::{NodeExecutionInput, NodeRun, NodeRunStatus, Run, RunMode, RunStatus},
+    store::{NodeRun, NodeRunStatus, Run, RunMode, RunStatus},
     AgentGraph, NodeInstance,
 };
 use serde_json::Value;
@@ -11,6 +11,13 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+
+pub mod providers;
+pub mod runtime;
+pub use runtime::{
+    BoxFuture, ChatMessage, EngineRuntime, LlmRequest, LlmResponse, ToolRequest,
+    UnavailableRuntime,
+};
 
 /// Result of executing a single node.
 #[derive(Debug, Clone)]
@@ -37,6 +44,10 @@ pub struct ExecutionEngine {
     pinned_data: Arc<RwLock<HashMap<String, Value>>>,
     /// Whether execution should stop on error.
     stop_on_error: bool,
+    /// Node outputs keyed by "node_id:port_id", the wires between blocks.
+    outputs: Arc<RwLock<HashMap<String, Value>>>,
+    /// Host capabilities: providers and tools.
+    runtime: Arc<dyn EngineRuntime>,
 }
 
 impl ExecutionEngine {
@@ -48,7 +59,21 @@ impl ExecutionEngine {
             node_runs: Arc::new(RwLock::new(HashMap::new())),
             pinned_data: Arc::new(RwLock::new(HashMap::new())),
             stop_on_error: true,
+            outputs: Arc::new(RwLock::new(HashMap::new())),
+            runtime: Arc::new(UnavailableRuntime),
         }
+    }
+
+    /// Attach the host that can reach providers and tools.
+    pub fn with_runtime(graph: AgentGraph, runtime: Arc<dyn EngineRuntime>) -> Self {
+        let mut engine = Self::new(graph);
+        engine.runtime = runtime;
+        engine
+    }
+
+    /// Every node output produced so far, keyed by "node_id:port_id".
+    pub async fn node_outputs(&self) -> HashMap<String, Value> {
+        self.outputs.read().await.clone()
     }
 
     /// Set whether execution stops on the first node error.
@@ -133,7 +158,7 @@ impl ExecutionEngine {
     /// Execute the graph from start to finish.
     /// Returns the final run result.
     pub async fn run_graph(&self, mode: RunMode) -> Result<Run, String> {
-        let _run_id = self.start_run(mode).await?;
+        let _run_id = self.start_run(mode.clone()).await?;
         let graph = self.graph.read().await.clone();
         let execution_order = self.compute_execution_order(&graph)?;
 
@@ -144,7 +169,7 @@ impl ExecutionEngine {
                 .find(|n| n.id == *node_id)
                 .ok_or_else(|| format!("Node not found: {}", node_id))?;
 
-            let result = self.execute_node(node).await;
+            let result = self.execute_node(node, mode.clone()).await;
 
             // Update node run status.
             {
@@ -162,6 +187,14 @@ impl ExecutionEngine {
             }
 
             // If we should stop on error and this node failed, stop.
+            // Keep this node's outputs so downstream blocks can read them by port.
+            if let Some(Value::Object(ports)) = &result.output {
+                let mut outputs = self.outputs.write().await;
+                for (port, value) in ports {
+                    outputs.insert(format!("{}:{}", node_id, port), value.clone());
+                }
+            }
+
             if self.stop_on_error && result.status == NodeRunStatus::Failed {
                 let error_msg = result.error.unwrap_or_default();
                 let mut run = self.run.write().await;
@@ -191,59 +224,43 @@ impl ExecutionEngine {
     }
 
     /// Execute a single node.
-    async fn execute_node(&self, node: &NodeInstance) -> NodeExecutionResult {
-        let node_id = node.id.clone();
+    async fn execute_node(&self, node: &NodeInstance, mode: RunMode) -> NodeExecutionResult {
+        let inputs = self.resolve_inputs(node).await;
 
-        // Check if any required inputs are pinned and use those values.
-        let pinned_inputs = self.get_pinned_inputs(node).await;
+        if mode == RunMode::Mock {
+            return self.execute_mock(node);
+        }
 
-        // Build the execution input.
-        let exec_input = NodeExecutionInput {
-            graph_id: self.graph.read().await.id.clone(),
-            node_id,
-            inputs: pinned_inputs,
-            pinned_overrides: HashMap::new(),
-        };
-
-        // Dispatch based on block kind.
-        let result = match node.block_id.as_str() {
-            "builtin:input" => self.execute_input(node).await,
-            "builtin:llm-prompt" => self.execute_llm_prompt(node, exec_input).await,
-            "builtin:structured-llm" => self.execute_structured_llm(node, exec_input).await,
-            "builtin:agent" => self.execute_agent(node, exec_input).await,
-            "builtin:http-request" => self.execute_http_request(node, exec_input).await,
-            "builtin:condition" => self.execute_condition(node, exec_input).await,
-            "builtin:loop-for-each" => self.execute_loop(node, exec_input).await,
-            "builtin:merge" => self.execute_merge(node, exec_input).await,
-            "builtin:code-js" => self.execute_code_js(node, exec_input).await,
-            "builtin:final-answer" => self.execute_final_answer(node, exec_input).await,
-            block_id => NodeExecutionResult {
-                node_id: node.id.clone(),
-                status: NodeRunStatus::Failed,
-                output: None,
-                error: Some(format!("Unknown block type: {}", block_id)),
-                tokens_in: None,
-                tokens_out: None,
-            },
-        };
-
-        result
+        match node.block_id.as_str() {
+            "builtin:input" => self.execute_input(node, inputs).await,
+            "builtin:llm-prompt" => self.execute_llm_prompt(node, inputs).await,
+            "builtin:structured-llm" => self.execute_structured_llm(node, inputs).await,
+            "builtin:agent" => self.execute_agent(node, inputs).await,
+            "builtin:http-request" => self.execute_http_request(node, inputs).await,
+            "builtin:condition" => self.execute_condition(node, inputs).await,
+            "builtin:loop-for-each" => self.execute_loop(node),
+            "builtin:merge" => self.execute_merge(node, inputs),
+            "builtin:code-js" => self.execute_code_js(node, inputs).await,
+            "builtin:final-answer" => self.execute_final_answer(node, inputs),
+            block_id => failed(node, format!("Unknown block type: {}", block_id)),
+        }
     }
 
-    /// Get pinned input values for a node.
-    async fn get_pinned_inputs(&self, node: &NodeInstance) -> HashMap<String, Value> {
-        let mut inputs = HashMap::new();
-
-        // Check each edge targeting this node for pinned source port values
+    /// Values arriving on a node's input ports: upstream outputs, with pinned
+    /// values taking precedence so a pinned port survives a re-run.
+    async fn resolve_inputs(&self, node: &NodeInstance) -> HashMap<String, Value> {
         let graph = self.graph.read().await;
-        for edge in &graph.edges {
-            if edge.target == node.id {
-                let key = format!("{}:{}", edge.source, edge.source_handle);
-                if let Some(value) = self.pinned_data.read().await.get(&key) {
-                    inputs.insert(edge.target_handle.clone(), value.clone());
-                }
+        let outputs = self.outputs.read().await;
+        let pinned = self.pinned_data.read().await;
+
+        let mut inputs = HashMap::new();
+        for edge in graph.edges.iter().filter(|edge| edge.target == node.id) {
+            let key = format!("{}:{}", edge.source, edge.source_handle);
+            if let Some(value) = pinned.get(&key).or_else(|| outputs.get(&key)) {
+                inputs.insert(edge.target_handle.clone(), value.clone());
             }
         }
+
         inputs
     }
 
@@ -305,169 +322,389 @@ impl ExecutionEngine {
         Ok(())
     }
 
-    /// Execute an input block (trigger).
-    async fn execute_input(&self, _node: &NodeInstance) -> NodeExecutionResult {
-        // Input block is a trigger — it produces output from the trigger source.
-        // For now, return a placeholder; in a real system this would come from
-        // the trigger source (chat message, webhook, etc.).
-        NodeExecutionResult {
-            node_id: "input".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: None,
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
-        }
+    /// Placeholder outputs for a dry run: no provider is called.
+    fn execute_mock(&self, node: &NodeInstance) -> NodeExecutionResult {
+        let output = match node.block_id.as_str() {
+            "builtin:input" => serde_json::json!({ "message": "", "payload": {} }),
+            "builtin:llm-prompt" => serde_json::json!({ "completion": "LLM response placeholder" }),
+            "builtin:structured-llm" => serde_json::json!({ "result": {} }),
+            "builtin:agent" => serde_json::json!({ "answer": "Agent response placeholder", "trace": {} }),
+            "builtin:http-request" => serde_json::json!({ "response": {}, "tool": {} }),
+            "builtin:condition" => serde_json::json!({ "true": null, "false": null }),
+            "builtin:loop-for-each" => serde_json::json!({ "results": [] }),
+            "builtin:merge" => serde_json::json!({ "merged": [] }),
+            "builtin:code-js" => serde_json::json!({ "output": null }),
+            "builtin:final-answer" => serde_json::json!({ "message": null }),
+            _ => return failed(node, format!("Unknown block type: {}", node.block_id)),
+        };
+        succeeded(node, output, None, None)
     }
 
-    /// Execute an LLM prompt block.
+    /// The entry point: hands the run input to the first block.
+    async fn execute_input(
+        &self,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
+    ) -> NodeExecutionResult {
+        let message = input_str(&inputs, "message")
+            .or_else(|| param_str(node, "message"))
+            .unwrap_or_default();
+        succeeded(
+            node,
+            serde_json::json!({ "message": message, "payload": {} }),
+            None,
+            None,
+        )
+    }
+
+    /// A single completion from the configured provider.
     async fn execute_llm_prompt(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        // This would call the LLM provider (Ollama/OpenAI/Anthropic).
-        // For Phase 3, return a placeholder result.
-        NodeExecutionResult {
-            node_id: "llm".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"completion": "LLM response placeholder"})),
-            error: None,
-            tokens_in: Some(10),
-            tokens_out: Some(5),
+        let message = input_str(&inputs, "message").or_else(|| param_str(node, "message"));
+        let Some(message) = message.filter(|value| !value.trim().is_empty()) else {
+            return failed(
+                node,
+                "Prompt Weaver has nothing to send: connect a block to its Message port or set a run input.",
+            );
+        };
+
+        let request = LlmRequest {
+            model: param_str(node, "model"),
+            system: input_str(&inputs, "system").or_else(|| param_str(node, "system")),
+            messages: vec![ChatMessage::user(message)],
+            temperature: param_f64(node, "temperature"),
+            json: false,
+        };
+
+        match self.runtime.run_llm(request).await {
+            Ok(response) => succeeded(
+                node,
+                serde_json::json!({ "completion": response.text }),
+                response.tokens_in,
+                response.tokens_out,
+            ),
+            Err(error) => failed(node, error),
         }
     }
 
-    /// Execute a structured LLM block.
+    /// A completion whose text is required to be JSON.
     async fn execute_structured_llm(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "structured-llm".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"result": {}})),
-            error: None,
-            tokens_in: Some(10),
-            tokens_out: Some(5),
+        let message = input_str(&inputs, "message")
+            .or_else(|| param_str(node, "message"))
+            .or_else(|| param_str(node, "schema"));
+        let Some(message) = message.filter(|value| !value.trim().is_empty()) else {
+            return failed(node, "Structured LLM block has no prompt to send.");
+        };
+
+        let instruction = match param_str(node, "schema") {
+            Some(schema) => format!("{}\n\nReply with JSON matching this schema: {}", message, schema),
+            None => message,
+        };
+
+        let request = LlmRequest {
+            model: param_str(node, "model"),
+            system: Some(
+                "Reply with a single JSON value and nothing else: no prose, no code fences.".to_string(),
+            ),
+            messages: vec![ChatMessage::user(instruction)],
+            temperature: param_f64(node, "temperature"),
+            json: true,
+        };
+
+        match self.runtime.run_llm(request).await {
+            Ok(response) => match parse_json_value(&response.text) {
+                Ok(value) => succeeded(
+                    node,
+                    serde_json::json!({ "result": value }),
+                    response.tokens_in,
+                    response.tokens_out,
+                ),
+                Err(error) => failed(
+                    node,
+                    format!("Model did not return JSON: {} (got: {})", error, truncate(&response.text, 200)),
+                ),
+            },
+            Err(error) => failed(node, error),
         }
     }
 
-    /// Execute an agent block.
+    /// One completion with the agent's instructions. Tool use inside the loop is
+    /// not wired up yet, so this makes exactly one call and reports it as one step.
     async fn execute_agent(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "agent".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"answer": "Agent response placeholder"})),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
+        let prompt = input_str(&inputs, "prompt")
+            .or_else(|| input_str(&inputs, "message"))
+            .or_else(|| param_str(node, "prompt"));
+        let Some(prompt) = prompt.filter(|value| !value.trim().is_empty()) else {
+            return failed(node, "Task Orchestrator has no prompt to work from.");
+        };
+
+        let system = param_str(node, "system").unwrap_or_else(|| {
+            "You are an autonomous agent. Answer the task directly and concisely.".to_string()
+        });
+
+        let request = LlmRequest {
+            model: param_str(node, "model"),
+            system: Some(system),
+            messages: vec![ChatMessage::user(prompt)],
+            temperature: param_f64(node, "temperature"),
+            json: false,
+        };
+
+        match self.runtime.run_llm(request).await {
+            Ok(response) => succeeded(
+                node,
+                serde_json::json!({
+                    "answer": response.text,
+                    "trace": {
+                        "iterations": 1,
+                        "maxIterations": param_f64(node, "max_iterations")
+                            .map(|value| value as u64)
+                            .unwrap_or(8),
+                        "tools": inputs.get("tools").cloned().unwrap_or(Value::Null),
+                    },
+                }),
+                response.tokens_in,
+                response.tokens_out,
+            ),
+            Err(error) => failed(node, error),
         }
     }
 
-    /// Execute an HTTP request block.
+    /// A real HTTP request made by the host, so credentials and the network stay
+    /// out of the engine.
     async fn execute_http_request(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "http-request".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"response": {}})),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
+        let url = input_str(&inputs, "url").or_else(|| param_str(node, "url"));
+        let Some(url) = url.filter(|value| !value.trim().is_empty()) else {
+            return failed(
+                node,
+                "Web Courier needs a URL: connect one to its URL port or set the url parameter.",
+            );
+        };
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return failed(node, format!("Web Courier only speaks http(s): {}", url));
+        }
+
+        let method = param_str(node, "method").unwrap_or_else(|| "GET".to_string());
+        let request = ToolRequest {
+            kind: "http-request".to_string(),
+            url: Some(url.clone()),
+            method: Some(method.clone()),
+            headers: inputs.get("headers").cloned(),
+            body: inputs.get("body").cloned(),
+            code: None,
+            input: None,
+        };
+
+        match self.runtime.run_tool(request).await {
+            Ok(response) => succeeded(
+                node,
+                serde_json::json!({
+                    "response": response,
+                    "tool": { "kind": "http-request", "method": method, "url": url },
+                }),
+                None,
+                None,
+            ),
+            Err(error) => failed(node, error),
         }
     }
 
-    /// Execute a condition block.
+    /// Routes the incoming value to the true or false port.
     async fn execute_condition(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "condition".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"true": null})),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
-        }
+        let value = inputs.get("value").cloned().unwrap_or(Value::Null);
+        let output = if is_truthy(&value) {
+            serde_json::json!({ "true": value, "false": null })
+        } else {
+            serde_json::json!({ "true": null, "false": value })
+        };
+        succeeded(node, output, None, None)
     }
 
-    /// Execute a loop block.
-    async fn execute_loop(
+    /// Loops are not executed: a run walks the graph once, and pretending to loop
+    /// would report work that never happened.
+    fn execute_loop(&self, node: &NodeInstance) -> NodeExecutionResult {
+        failed(
+            node,
+            "Loop blocks are not implemented: a run executes each block once.",
+        )
+    }
+
+    fn execute_merge(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "loop".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"results": []})),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
-        }
+        let merged: Vec<Value> = inputs.into_values().collect();
+        succeeded(node, serde_json::json!({ "merged": merged }), None, None)
     }
 
-    /// Execute a merge block.
-    async fn execute_merge(
-        &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
-    ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "merge".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!([])),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
-        }
-    }
-
-    /// Execute a code (JS) block.
+    /// JavaScript blocks need the sandbox, which ships with the host.
     async fn execute_code_js(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        // Code blocks run in the QuickJS sandbox sidecar.
-        // For Phase 3, this delegates to the Tauri sidecar.
-        NodeExecutionResult {
-            node_id: "code-js".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: Some(serde_json::json!({"output": null})),
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
+        let request = ToolRequest {
+            kind: "code-js".to_string(),
+            url: None,
+            method: None,
+            headers: None,
+            body: None,
+            code: param_str(node, "code"),
+            input: inputs.get("input").cloned(),
+        };
+
+        match self.runtime.run_tool(request).await {
+            Ok(value) => succeeded(node, serde_json::json!({ "output": value }), None, None),
+            Err(error) => failed(node, error),
         }
     }
 
-    /// Execute a final answer block.
-    async fn execute_final_answer(
+    /// The terminal block: passes the answer through so the run has a result.
+    fn execute_final_answer(
         &self,
-        _node: &NodeInstance,
-        _input: NodeExecutionInput,
+        node: &NodeInstance,
+        inputs: HashMap<String, Value>,
     ) -> NodeExecutionResult {
-        NodeExecutionResult {
-            node_id: "final-answer".to_string(),
-            status: NodeRunStatus::Succeeded,
-            output: None,
-            error: None,
-            tokens_in: None,
-            tokens_out: None,
-        }
+        let message = input_str(&inputs, "message").or_else(|| param_str(node, "message"));
+        let Some(message) = message.filter(|value| !value.trim().is_empty()) else {
+            return failed(node, "Result Terminal has no message to return.");
+        };
+        succeeded(node, serde_json::json!({ "message": message }), None, None)
     }
 }
+
+fn succeeded(
+    node: &NodeInstance,
+    output: Value,
+    tokens_in: Option<u64>,
+    tokens_out: Option<u64>,
+) -> NodeExecutionResult {
+    NodeExecutionResult {
+        node_id: node.id.clone(),
+        status: NodeRunStatus::Succeeded,
+        output: Some(output),
+        error: None,
+        tokens_in,
+        tokens_out,
+    }
+}
+
+fn failed(node: &NodeInstance, error: impl Into<String>) -> NodeExecutionResult {
+    NodeExecutionResult {
+        node_id: node.id.clone(),
+        status: NodeRunStatus::Failed,
+        output: None,
+        error: Some(error.into()),
+        tokens_in: None,
+        tokens_out: None,
+    }
+}
+
+fn param_str(node: &NodeInstance, key: &str) -> Option<String> {
+    match node.parameters.get(key) {
+        Some(Value::String(text)) if !text.is_empty() => Some(text.clone()),
+        Some(Value::Number(number)) => Some(number.to_string()),
+        _ => None,
+    }
+}
+
+fn param_f64(node: &NodeInstance, key: &str) -> Option<f64> {
+    match node.parameters.get(key) {
+        Some(Value::Number(number)) => number.as_f64(),
+        Some(Value::String(text)) => text.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+/// Reads a value arriving on an input port as text. Objects produced by other
+/// blocks carry their text in a conventional field, so those are unwrapped.
+fn input_str(inputs: &HashMap<String, Value>, key: &str) -> Option<String> {
+    match inputs.get(key)? {
+        Value::String(text) => Some(text.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Object(map) => ["content", "text", "message", "answer", "completion", "output"]
+            .iter()
+            .find_map(|field| map.get(*field).and_then(|value| value.as_str()))
+            .map(|text| text.to_string()),
+        Value::Array(items) => Some(
+            items
+                .iter()
+                .map(|item| match item {
+                    Value::String(text) => text.clone(),
+                    other => other.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+        _ => None,
+    }
+}
+
+fn is_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(flag) => *flag,
+        Value::Number(number) => number.as_f64().map(|float| float != 0.0).unwrap_or(false),
+        Value::String(text) => !text.is_empty(),
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(map) => !map.is_empty(),
+    }
+}
+
+/// Accepts the JSON a model actually returns: fences and surrounding prose are
+/// stripped before parsing.
+fn parse_json_value(text: &str) -> Result<Value, String> {
+    let trimmed = text.trim();
+    let unfenced = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```"))
+        .unwrap_or(trimmed);
+    let unfenced = unfenced.strip_suffix("```").unwrap_or(unfenced).trim();
+
+    if let Ok(value) = serde_json::from_str::<Value>(unfenced) {
+        return Ok(value);
+    }
+
+    let first = unfenced.find(['{', '[']);
+    let last = unfenced.rfind(['}', ']']);
+    if let (Some(first), Some(last)) = (first, last) {
+        if last > first {
+            return serde_json::from_str::<Value>(&unfenced[first..=last])
+                .map_err(|error| error.to_string());
+        }
+    }
+
+    Err("no JSON value found".to_string())
+}
+
+fn truncate(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_string();
+    }
+    let clipped: String = text.chars().take(limit).collect();
+    format!("{}…", clipped)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -623,5 +860,184 @@ mod tests {
         let run = engine.run_graph(RunMode::Mock).await.unwrap();
         assert_eq!(run.status, RunStatus::Succeeded);
         assert!(run.ended_at.is_some());
+    }
+
+    struct StubRuntime {
+        reply: String,
+        llm_calls: std::sync::atomic::AtomicUsize,
+        tool_calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl StubRuntime {
+        fn new(reply: &str) -> Self {
+            Self {
+                reply: reply.to_string(),
+                llm_calls: std::sync::atomic::AtomicUsize::new(0),
+                tool_calls: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl EngineRuntime for StubRuntime {
+        fn run_llm<'a>(&'a self, _request: LlmRequest) -> BoxFuture<'a, Result<LlmResponse, String>> {
+            self.llm_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let reply = self.reply.clone();
+            Box::pin(async move {
+                Ok(LlmResponse { text: reply, tokens_in: Some(7), tokens_out: Some(11) })
+            })
+        }
+
+        fn run_tool<'a>(&'a self, _request: ToolRequest) -> BoxFuture<'a, Result<Value, String>> {
+            self.tool_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async move { Ok(serde_json::json!({ "status": 200, "body": "ok" })) })
+        }
+    }
+
+    /// trigger(message) -> llm-prompt(message -> completion) -> final-answer(message)
+    fn make_chain_graph(trigger_message: &str) -> AgentGraph {
+        let mut graph = make_test_graph();
+        graph.nodes[0].parameters.insert(
+            "message".to_string(),
+            Value::String(trigger_message.to_string()),
+        );
+        graph.nodes[1].parameters.insert(
+            "model".to_string(),
+            Value::String("test-model".to_string()),
+        );
+        // builtin:final-answer expects its input on "message".
+        graph.edges[1].target_handle = "message".to_string();
+        graph
+    }
+
+    #[tokio::test]
+    async fn live_run_calls_the_provider_and_passes_data_downstream() {
+        let runtime = Arc::new(StubRuntime::new("hello from the model"));
+        let engine = ExecutionEngine::with_runtime(make_chain_graph("say hello"), runtime.clone());
+
+        let run = engine.run_graph(RunMode::Live).await.expect("live run");
+        assert_eq!(run.status, RunStatus::Succeeded);
+        assert_eq!(runtime.llm_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let outputs = engine.node_outputs().await;
+        assert_eq!(
+            outputs.get("n2:completion").and_then(|value| value.as_str()),
+            Some("hello from the model")
+        );
+        assert_eq!(
+            outputs.get("n3:message").and_then(|value| value.as_str()),
+            Some("hello from the model")
+        );
+    }
+
+    #[tokio::test]
+    async fn llm_block_fails_without_a_message() {
+        let runtime = Arc::new(StubRuntime::new("unused"));
+        let engine = ExecutionEngine::with_runtime(make_chain_graph(""), runtime.clone());
+
+        let error = engine.run_graph(RunMode::Live).await.expect_err("must fail");
+        assert!(error.contains("nothing to send"), "unexpected error: {}", error);
+        assert_eq!(runtime.llm_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+
+    fn make_structured_graph() -> AgentGraph {
+        let mut graph = make_test_graph();
+        graph.nodes[0].parameters.insert(
+            "message".to_string(),
+            Value::String("summarise this".to_string()),
+        );
+        graph.nodes[1].block_id = "builtin:structured-llm".to_string();
+        // The structured block is the last block here: it publishes "result",
+        // not the "completion" the final-answer block reads.
+        graph.nodes.pop();
+        graph.edges.pop();
+        graph
+    }
+
+    #[tokio::test]
+    async fn structured_block_parses_fenced_json() {
+        let reply = "```json\n{\"score\": 3}\n```";
+        let runtime = Arc::new(StubRuntime::new(reply));
+        let engine = ExecutionEngine::with_runtime(make_structured_graph(), runtime);
+
+        engine.run_graph(RunMode::Live).await.expect("structured run");
+        let outputs = engine.node_outputs().await;
+        assert_eq!(
+            outputs
+                .get("n2:result")
+                .and_then(|value| value.get("score"))
+                .and_then(|score| score.as_i64()),
+            Some(3)
+        );
+    }
+
+    #[tokio::test]
+    async fn structured_block_fails_when_the_model_ignores_json() {
+        let runtime = Arc::new(StubRuntime::new("I am afraid I cannot do that."));
+        let engine = ExecutionEngine::with_runtime(make_structured_graph(), runtime);
+
+        let error = engine.run_graph(RunMode::Live).await.expect_err("must fail");
+        assert!(error.contains("did not return JSON"), "unexpected error: {}", error);
+    }
+
+    #[tokio::test]
+    async fn mock_mode_never_reaches_the_provider() {
+        let runtime = Arc::new(StubRuntime::new("unused"));
+        let engine = ExecutionEngine::with_runtime(make_chain_graph("say hello"), runtime.clone());
+
+        engine.run_graph(RunMode::Mock).await.expect("mock run");
+        assert_eq!(runtime.llm_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(runtime.tool_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn http_block_goes_through_the_runtime() {
+        let runtime = Arc::new(StubRuntime::new("unused"));
+        let graph = AgentGraph {
+            id: "http-graph".to_string(),
+            name: "HTTP".to_string(),
+            description: None,
+            schema_version: 1,
+            nodes: vec![
+                NodeInstance {
+                    id: "n1".to_string(),
+                    block_id: "builtin:input".to_string(),
+                    block_version: 1,
+                    position: opifex_core::Position { x: 0.0, y: 0.0 },
+                    parameters: HashMap::new(),
+                    sub_graph: None,
+                    is_collapsed: false,
+                },
+                NodeInstance {
+                    id: "n2".to_string(),
+                    block_id: "builtin:http-request".to_string(),
+                    block_version: 1,
+                    position: opifex_core::Position { x: 200.0, y: 0.0 },
+                    parameters: HashMap::new(),
+                    sub_graph: None,
+                    is_collapsed: false,
+                },
+            ],
+            edges: vec![EdgeInstance {
+                id: "e1".to_string(),
+                source: "n1".to_string(),
+                source_handle: "message".to_string(),
+                target: "n2".to_string(),
+                target_handle: "url".to_string(),
+            }],
+            viewport: None,
+            metadata: None,
+        };
+
+        let mut graph = graph;
+        graph.nodes[0].parameters.insert(
+            "message".to_string(),
+            Value::String("ftp://example.com/data".to_string()),
+        );
+
+        let engine = ExecutionEngine::with_runtime(graph, runtime.clone());
+        let error = engine.run_graph(RunMode::Live).await.expect_err("must fail");
+        assert!(error.contains("http(s)"), "unexpected error: {}", error);
+        assert_eq!(runtime.tool_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 }
