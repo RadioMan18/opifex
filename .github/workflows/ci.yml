@@ -9,17 +9,15 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Job names are the required status check contexts in the "Protect Main"
+# ruleset ("npm test" and "cargo test"), so keep the two in sync.
 jobs:
-  test:
+  npm-test:
+    name: npm test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -30,12 +28,28 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Check Rust formatting
-        working-directory: src-tauri
-        run: cargo fmt --check || echo "Formatting issues found - run cargo fmt locally"
-
-      - name: Run TypeScript type check
+      - name: Type check and build
         run: npm run build
 
       - name: Run frontend tests
         run: npx vitest run
+
+  cargo-test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      # The Tauri app crate is left out on purpose: it links against the system
+      # webview libraries, which none of the crates under test need.
+      - name: Run Rust tests
+        run: cargo test -p opifex-core -p opifex-engine -p opifex-export -p opifex-cli
