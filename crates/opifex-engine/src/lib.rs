@@ -472,9 +472,7 @@ impl ExecutionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opifex_core::BlockPort;
-    use opifex_core::PortDirection;
-    use opifex_core::PortType;
+    use opifex_core::EdgeInstance;
 
     fn make_test_graph() -> AgentGraph {
         AgentGraph {
