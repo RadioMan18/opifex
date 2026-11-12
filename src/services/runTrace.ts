@@ -18,8 +18,8 @@ export interface RunTrace {
 /**
  * Derive what to paint on the canvas for a finished run.
  *
- * `run_agent_graph` returns only the run header: the engine tracks a `NodeRun`
- * per node but never exposes or persists it through this command. A successful
+ * `run_agent_graph` returns only the run header here; per-node rows are written
+ * to the run history tables and replayed by RunHistory, not returned live. A successful
  * run therefore means every node in execution order ran, and a failed run
  * rejects with "Execution stopped at node <id>: <reason>", which names the node
  * that broke. Both are read here rather than invented: when the failure message

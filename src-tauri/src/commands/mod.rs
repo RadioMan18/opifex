@@ -5,6 +5,7 @@ mod files;
 mod ollama;
 mod plan;
 mod run;
+mod run_history;
 mod run_runtime;
 mod template;
 
@@ -22,8 +23,9 @@ pub use connector::{
     list_connector_grants, list_connectors, revoke_connector, update_connector,
 };
 #[allow(dead_code, unused_imports)]
+pub use run_history::{RunDetail, RunNodeRecord, RunSummary};
 pub use run::{
-    pin_agent_data, run_agent_graph, unpin_agent_data, get_pinned_data, get_run_status,
+    pin_agent_data, run_agent_graph, unpin_agent_data, get_pinned_data, get_run_status, list_runs, get_run,
     create_skill, list_skills,
     create_knowledge_source, list_knowledge_sources,
     create_trigger, list_triggers,
