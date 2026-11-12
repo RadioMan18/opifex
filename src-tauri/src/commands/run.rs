@@ -11,6 +11,7 @@
 //! - Manage artifacts, messaging modes, setup steps
 //! - Apply Oppy edits
 
+use crate::commands::run_history::{self, RunDetail, RunSummary};
 use crate::commands::run_runtime::AppRuntime;
 use crate::db::DbState;
 use opifex_core::{
@@ -89,7 +90,7 @@ pub async fn run_agent_graph(
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         conn.query_row(
             "SELECT spec_json FROM agents WHERE id = ?1",
-            params![input.agent_id],
+            params![&input.agent_id],
             |row| row.get(0),
         )
         .map_err(|e| format!("Agent not found: {}", e))?
@@ -107,16 +108,62 @@ pub async fn run_agent_graph(
         }
     }
 
+    // The run row points at this graph, and foreign keys are enforced, so the
+    // graph is recorded first (outside the provider snapshot below).
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        run_history::save_graph(&conn, &input.agent_id, &graph)
+            .map_err(|e| format!("Failed to record the graph for this run: {}", e))?;
+    }
+
     // Providers and tools are resolved once per run, outside the DB lock.
     let runtime = Arc::new(AppRuntime::from_settings(&db));
     let engine = ExecutionEngine::with_runtime(graph, runtime);
 
-    let run = engine
-        .run_graph(input.mode)
-        .await
-        .map_err(|e| format!("Execution failed: {}", e))?;
+    let outcome = engine.run_graph(input.mode).await;
+    let node_runs = engine.node_runs().await;
 
-    Ok(RunReport { run, outputs: engine.node_outputs().await })
+    // History is written even for a failed run: the node that broke and its
+    // error are the most useful part of it.
+    if let Some(run) = engine.current_run().await {
+        let recorded = {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            run_history::save_run(&conn, &input.agent_id, &run, &node_runs)
+        };
+        if let Err(error) = recorded {
+            log::warn!("could not record run {}: {}", run.id, error);
+        }
+    }
+
+    match outcome {
+        Ok(run) => Ok(RunReport { run, outputs: engine.node_outputs().await }),
+        Err(error) => Err(format!("Execution failed: {}", error)),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ListRunsInput {
+    pub agent_id: String,
+    /// Defaults to the 20 most recent runs.
+    #[serde(default)]
+    pub limit: Option<i64>,
+}
+
+#[tauri::command]
+pub fn list_runs(db: State<'_, DbState>, input: ListRunsInput) -> Result<Vec<RunSummary>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    run_history::list_runs(&conn, &input.agent_id, input.limit.unwrap_or(20).clamp(1, 200))
+}
+
+#[derive(Deserialize)]
+pub struct GetRunInput {
+    pub run_id: String,
+}
+
+#[tauri::command]
+pub fn get_run(db: State<'_, DbState>, input: GetRunInput) -> Result<Option<RunDetail>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    run_history::load_run(&conn, &input.run_id)
 }
 
 #[tauri::command]

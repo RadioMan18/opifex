@@ -15,6 +15,7 @@ import SkillEditor from '@/components/inspector/SkillEditor.vue';
 import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
 import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 import RunControl from '@/components/RunControl.vue';
+import RunHistory from '@/components/RunHistory.vue';
 import { saveTextFile as ipcSaveTextFile, loadTextFile as ipcLoadTextFile, isDesktopShell } from '@/services/ipc';
 import type { Agent, AgentGraph, AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 import { isAgentGraph } from '@/types/agent';
@@ -247,11 +248,12 @@ const selectedCanvasNodeId = computed(() => graphStore.selectedNodeId ?? undefin
 // One rail, one place to look: the canvas owns the workspace, and everything
 // that configures a node or an agent lives in a tab here instead of stacking
 // panels underneath the canvas.
-type InspectorTab = 'node' | 'tools' | 'pins' | 'skills' | 'knowledge' | 'triggers';
+type InspectorTab = 'node' | 'tools' | 'pins' | 'runs' | 'skills' | 'knowledge' | 'triggers';
 const inspectorTabs: Array<{ id: InspectorTab; label: string }> = [
   { id: 'node', label: 'Node' },
   { id: 'tools', label: 'Tools' },
   { id: 'pins', label: 'Pins' },
+  { id: 'runs', label: 'Runs' },
   { id: 'skills', label: 'Skills' },
   { id: 'knowledge', label: 'Knowledge' },
   { id: 'triggers', label: 'Triggers' },
@@ -756,6 +758,10 @@ async function setupKeyboardShortcuts() {
               :node-id="selectedCanvasNodeId"
               :port-id="undefined"
               :value="undefined"
+            />
+            <RunHistory
+              v-else-if="inspectorTab === 'runs'"
+              :agent-id="currentAgent?.id"
             />
             <SkillEditor
               v-else-if="inspectorTab === 'skills'"

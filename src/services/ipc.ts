@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import type { RunDetail, RunSummary } from '@/services/runHistory';
 import type {
   Agent,
   AgentListItem,
@@ -410,6 +411,15 @@ interface Run {
 // Run IPC
 export async function runAgentGraph(input: RunAgentGraphInput): Promise<Run> {
   return invoke('run_agent_graph', { input });
+}
+
+// Run history (snake_case to match the Rust input structs)
+export async function listRuns(agentId: string, limit = 20): Promise<RunSummary[]> {
+  return invoke('list_runs', { input: { agent_id: agentId, limit } });
+}
+
+export async function getRun(runId: string): Promise<RunDetail | null> {
+  return invoke('get_run', { input: { run_id: runId } });
 }
 
 export async function pinAgentData(input: PinDataInput): Promise<void> {
