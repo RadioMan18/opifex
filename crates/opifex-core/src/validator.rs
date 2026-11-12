@@ -109,11 +109,15 @@ pub enum ParameterType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInstance {
     pub id: String,
+    #[serde(alias = "blockId")]
     pub block_id: String,
+    #[serde(alias = "blockVersion")]
     pub block_version: u32,
     pub position: Position,
     pub parameters: HashMap<String, serde_json::Value>,
+    #[serde(default, alias = "subGraph")]
     pub sub_graph: Option<Box<AgentGraph>>,
+    #[serde(alias = "isCollapsed")]
     pub is_collapsed: bool,
 }
 
@@ -128,8 +132,10 @@ pub struct Position {
 pub struct EdgeInstance {
     pub id: String,
     pub source: String,
+    #[serde(alias = "sourceHandle")]
     pub source_handle: String,
     pub target: String,
+    #[serde(alias = "targetHandle")]
     pub target_handle: String,
 }
 
@@ -138,11 +144,17 @@ pub struct EdgeInstance {
 pub struct AgentGraph {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub description: Option<String>,
+    // The webview writes camelCase; these aliases keep its payload parseable
+    // without changing what the engine serialises.
+    #[serde(alias = "schemaVersion")]
     pub schema_version: u32,
     pub nodes: Vec<NodeInstance>,
     pub edges: Vec<EdgeInstance>,
+    #[serde(default)]
     pub viewport: Option<Viewport>,
+    #[serde(default)]
     pub metadata: Option<serde_json::Value>,
 }
 
@@ -482,6 +494,43 @@ mod tests {
         }
     }
 
+    /// The webview sends camelCase JSON and omits absent optional fields.
+    #[test]
+    fn test_camel_case_graph_json_deserializes() {
+        let json = serde_json::json!({
+            "id": "g1",
+            "name": "Webview graph",
+            "schemaVersion": 1,
+            "nodes": [{
+                "id": "n1",
+                "blockId": "builtin:trigger",
+                "blockVersion": 1,
+                "position": { "x": 10.0, "y": 20.0 },
+                "parameters": {},
+                "isCollapsed": false
+            }],
+            "edges": [{
+                "id": "e1",
+                "source": "n1",
+                "sourceHandle": "out",
+                "target": "n1",
+                "targetHandle": "in"
+            }],
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        });
+
+        let graph: AgentGraph = serde_json::from_value(json).expect("camelCase graph must parse");
+        assert_eq!(graph.schema_version, 1);
+        assert_eq!(graph.nodes[0].block_id, "builtin:trigger");
+        assert_eq!(graph.nodes[0].block_version, 1);
+        assert!(graph.nodes[0].sub_graph.is_none());
+        assert!(!graph.nodes[0].is_collapsed);
+        assert_eq!(graph.edges[0].source_handle, "out");
+        assert_eq!(graph.edges[0].target_handle, "in");
+    }
+
+    #[test]
     #[test]
     fn test_valid_graph_single_trigger() {
         let mut nodes = vec![NodeInstance {

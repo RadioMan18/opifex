@@ -543,6 +543,53 @@ mod tests {
         assert_eq!(order[2], "n3");
     }
 
+    /// The canvas writes camelCase JSON into agents.spec_json; a run has to
+    /// parse that payload and walk the graph without any translation step.
+    #[tokio::test]
+    async fn test_runs_webview_camel_case_graph() {
+        let json = serde_json::json!({
+            "id": "canvas-graph",
+            "name": "Canvas graph",
+            "schemaVersion": 1,
+            "nodes": [
+                {
+                    "id": "n1",
+                    "blockId": "builtin:input",
+                    "blockVersion": 1,
+                    "position": { "x": 0.0, "y": 0.0 },
+                    "parameters": {},
+                    "isCollapsed": false
+                },
+                {
+                    "id": "n2",
+                    "blockId": "builtin:llm-prompt",
+                    "blockVersion": 1,
+                    "position": { "x": 200.0, "y": 0.0 },
+                    "parameters": {},
+                    "isCollapsed": false
+                }
+            ],
+            "edges": [{
+                "id": "e1",
+                "source": "n1",
+                "sourceHandle": "message",
+                "target": "n2",
+                "targetHandle": "message"
+            }],
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z"
+        });
+
+        let graph: AgentGraph = serde_json::from_value(json).expect("canvas graph must parse");
+        let run = ExecutionEngine::new(graph)
+            .run_graph(RunMode::Mock)
+            .await
+            .expect("mock run should walk the graph");
+
+        assert_eq!(run.status, RunStatus::Succeeded);
+        assert!(run.ended_at.is_some());
+    }
+
     #[tokio::test]
     async fn test_cycle_detection() {
         let mut graph = make_test_graph();

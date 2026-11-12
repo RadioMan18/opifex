@@ -14,11 +14,28 @@ export interface AgentPlan {
   outputs?: string[];
 }
 
+/** What an agent row holds: a v2 canvas graph, or a legacy interview plan. */
+export type AgentSpec = AgentGraph | AgentPlan;
+
+/**
+ * The canvas and the Rust graph describe the same thing, so a stored spec is
+ * told apart from a legacy plan by its node and edge arrays.
+ */
+export function isAgentGraph(spec: unknown): spec is AgentGraph {
+  if (!spec || typeof spec !== 'object') return false;
+  const candidate = spec as Partial<AgentGraph>;
+  return (
+    Array.isArray(candidate.nodes) &&
+    Array.isArray(candidate.edges) &&
+    typeof candidate.schemaVersion === 'number'
+  );
+}
+
 export interface Agent {
   id: string;
   name: string;
   description: string | null;
-  specJson: AgentPlan;
+  specJson: AgentSpec;
   model: string;
   isStarter: boolean;
   createdAt: string;
@@ -69,7 +86,7 @@ export interface PlanVersion {
 export interface CreateAgentInput {
   name: string;
   description: string | null;
-  specJson: AgentPlan;
+  specJson: AgentSpec;
   model: string | null;
   isStarter: boolean | null;
 }
@@ -77,7 +94,7 @@ export interface CreateAgentInput {
 export interface UpdateAgentInput {
   name: string | null;
   description: string | null;
-  specJson: AgentPlan | null;
+  specJson: AgentSpec | null;
   model: string | null;
   isStarter: boolean | null;
 }

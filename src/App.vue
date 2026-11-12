@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, onBeforeUnmount } from 'vue';
+import { onMounted, ref, computed, onBeforeUnmount, watch } from 'vue';
 import { useAgentStore } from '@/stores/agentStore';
 import { useGraphStore } from '@/stores/graphStore';
 import ChatPane from '@/components/ChatPane.vue';
@@ -16,7 +16,9 @@ import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.
 import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
 import RunControl from '@/components/RunControl.vue';
 import { saveTextFile as ipcSaveTextFile, loadTextFile as ipcLoadTextFile, isDesktopShell } from '@/services/ipc';
-import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
+import type { Agent, AgentGraph, AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
+import { isAgentGraph } from '@/types/agent';
+import { queueGraphSave, markGraphSynced, resetGraphSync } from '@/services/graphSync';
 
 const store = useAgentStore();
 const graphStore = useGraphStore();
@@ -306,6 +308,38 @@ function seedStarterGraph() {
     subGraph: undefined,
     isCollapsed: false,
   });
+}
+
+// The canvas is the agent's spec: load it when an agent is selected, and write
+// it back as it changes, so Run executes what is on screen.
+watch(
+  () => state.currentAgent,
+  (agent) => hydrateCanvas(agent),
+);
+
+watch(
+  () => graphStore.graph,
+  () => queueGraphSave(),
+  { deep: true },
+);
+
+function hydrateCanvas(agent: Agent | null) {
+  if (!agent) return;
+
+  const spec: unknown = agent.specJson;
+  if (isAgentGraph(spec)) {
+    const graph = JSON.parse(JSON.stringify(spec)) as AgentGraph;
+    graphStore.setGraph({ ...graph, name: graph.name || agent.name });
+    // Blocks disabled on canvas stay canvas state: they are not part of the graph.
+    graphStore.disabledNodeIds = [];
+    graphStore.groups = [];
+  } else if ((graphStore.graph?.nodes.length ?? 0) === 0) {
+    graphStore.createGraph(agent.name || 'Untitled Graph');
+    seedStarterGraph();
+  }
+
+  resetGraphSync();
+  markGraphSynced();
 }
 
 function toggleDarkMode() {
