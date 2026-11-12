@@ -12,6 +12,15 @@
       </span>
     </div>
 
+    <label class="block text-xs text-slate-400 mb-1" for="run-input">Run input</label>
+    <textarea
+      id="run-input"
+      v-model="runInput"
+      rows="2"
+      placeholder="Message sent to the Entry Point block"
+      class="w-full mb-2 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+    />
+
     <div class="flex gap-2">
       <button
         v-if="!isRunning"
@@ -38,6 +47,14 @@
 
     <div v-if="runResult" class="mt-3 p-2.5 rounded bg-green-500/10 border border-green-500/20 text-green-400 text-xs">
       Run completed successfully
+    </div>
+
+    <div
+      v-if="runOutput"
+      class="mt-3 p-2.5 rounded bg-slate-800 border border-slate-700 text-slate-200 text-xs"
+    >
+      <p class="font-semibold mb-1">Output</p>
+      <pre class="whitespace-pre-wrap break-words font-sans">{{ runOutput }}</pre>
     </div>
 
     <div
@@ -68,6 +85,8 @@ const isRunning = ref(false);
 const runStatus = ref<string | null>(null);
 const runError = ref<string | null>(null);
 const runResult = ref<any | null>(null);
+const runInput = ref('');
+const runOutput = ref<string | null>(null);
 
 async function runAgent() {
   if (!props.agentId) return;
@@ -95,9 +114,11 @@ async function runAgent() {
 
     const run = await runAgentGraph({
       agent_id: props.agentId,
-      mode: 'mock', // Node execution is stubbed in the engine; the graph walk is real.
+      mode: 'live',
+      message: runInput.value,
     });
     runResult.value = run;
+    runOutput.value = terminalOutput(run);
     // Rust serialises RunStatus as PascalCase; the control speaks lowercase.
     runStatus.value = String(run.status ?? '').toLowerCase();
     paint(run.status === 'cancelled' ? 'cancelled' : 'succeeded');
@@ -138,6 +159,26 @@ function clearPaint() {
   runResult.value = null;
   runError.value = null;
   runStatus.value = null;
+  runOutput.value = null;
+}
+
+/// The answer a run produced: the text a terminal block received.
+function terminalOutput(run: any): string | null {
+  const outputs = run?.outputs as Record<string, unknown> | undefined;
+  const graph = graphStore.graph;
+  if (!outputs || !graph) return null;
+
+  const terminals = graph.nodes.filter(
+    (node) => !graph.edges.some((edge) => edge.source === node.id),
+  );
+  for (const node of terminals) {
+    for (const port of ['message', 'completion', 'answer', 'output', 'merged']) {
+      const value = outputs[node.id + ':' + port];
+      if (typeof value === 'string' && value.trim()) return value;
+      if (value !== undefined && value !== null) return JSON.stringify(value, null, 2);
+    }
+  }
+  return null;
 }
 
 async function cancelRun() {

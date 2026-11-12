@@ -355,6 +355,8 @@ export async function checkToolApproval(
 interface RunAgentGraphInput {
   agent_id: string;
   mode: 'live' | 'mock';
+  /** Seeds the Entry Point block for this run. */
+  message?: string;
 }
 
 interface PinDataInput {
@@ -392,6 +394,8 @@ interface RunStatusDto {
 
 interface Run {
   id: string;
+  /** Node outputs keyed by "node_id:port_id". */
+  outputs?: Record<string, unknown>;
   graph_id: string;
   graph_hash: string;
   mode: string;

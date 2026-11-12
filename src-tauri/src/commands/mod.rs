@@ -5,6 +5,7 @@ mod files;
 mod ollama;
 mod plan;
 mod run;
+mod run_runtime;
 mod template;
 
 #[allow(dead_code, unused_imports)]
