@@ -1,0 +1,8 @@
+/*
+ * Tailwind entry point.
+ *
+ * The components are written with Tailwind utilities (w-64, p-3, text-xs,
+ * bg-slate-800, ...), so these utilities have to be generated. Loaded before
+ * App.vue's styles so the app's own layout and theme tokens still win.
+ */
+@import "tailwindcss";

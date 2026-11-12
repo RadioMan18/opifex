@@ -226,7 +226,7 @@ export function useAgentStore() {
     try {
       state.models = await ipcOllamaListModels();
     } catch (err: any) {
-      state.error = err?.message || String(err);
+      console.warn('Ollama not available:', err?.message || String(err));
     }
   }
 
@@ -234,7 +234,7 @@ export function useAgentStore() {
     try {
       state.defaultModel = await ipcOllamaGetDefaultModel();
     } catch (err: any) {
-      state.error = err?.message || String(err);
+      console.warn('Failed to load default model:', err?.message || String(err));
     }
   }
 
@@ -255,7 +255,8 @@ export function useAgentStore() {
         state.provider = 'ollama';
       }
     } catch (err: any) {
-      state.error = err?.message || String(err);
+      console.warn('Failed to load provider:', err?.message || String(err));
+      state.provider = 'ollama';
     }
   }
 

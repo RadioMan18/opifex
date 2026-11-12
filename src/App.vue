@@ -1,16 +1,27 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, ref, computed, onBeforeUnmount } from 'vue';
 import { save as tauriSaveDialog, open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
 import { readFile as tauriReadFile } from '@tauri-apps/plugin-fs';
 import { useAgentStore } from '@/stores/agentStore';
+import { useGraphStore } from '@/stores/graphStore';
 import ChatPane from '@/components/ChatPane.vue';
 import PlanPane from '@/components/PlanPane.vue';
 import AgentLibrary from '@/components/AgentLibrary.vue';
 import ModelSelector from '@/components/ModelSelector.vue';
-import { writeFile as ipcWriteFile } from '@/services/ipc';
-import type { AgentPlan, InstalledTemplate, TemplateSource } from '@/types/agent';
+import AgentCanvas from '@/components/AgentCanvas.vue';
+import BlockPalette from '@/components/BlockPalette.vue';
+import NodeInspector from '@/components/NodeInspector.vue';
+import AgentToolDrawer from '@/components/inspector/AgentToolDrawer.vue';
+import PinPanel from '@/components/PinPanel.vue';
+import SkillEditor from '@/components/inspector/SkillEditor.vue';
+import KnowledgeSourceEditor from '@/components/inspector/KnowledgeSourceEditor.vue';
+import TriggerEditor from '@/components/inspector/TriggerEditor.vue';
+import RunControl from '@/components/RunControl.vue';
+import { writeFile as ipcWriteFile, isDesktopShell } from '@/services/ipc';
+import type { AgentPlan, InstalledTemplate, TemplateSource, BlockDefinition } from '@/types/agent';
 
 const store = useAgentStore();
+const graphStore = useGraphStore();
 const {
   state,
   init,
@@ -49,14 +60,255 @@ const renameName = ref('');
 const showProviderDialog = ref(false);
 const newVersionLabel = ref('');
 const darkMode = ref(localStorage.getItem('opifex-theme') === 'dark');
+const viewMode = ref<'canvas' | 'oppy'>('canvas');
+const showUtilityMenu = ref(false);
+const utilityMenuRef = ref<HTMLElement | null>(null);
+
+function toggleUtilityMenu() {
+  showUtilityMenu.value = !showUtilityMenu.value;
+}
+
+function closeUtilityMenu() {
+  showUtilityMenu.value = false;
+}
+
+function handleUtilityAction(action: () => void) {
+  action();
+  closeUtilityMenu();
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (utilityMenuRef.value && !utilityMenuRef.value.contains(e.target as Node)) {
+    closeUtilityMenu();
+  }
+}
+
+const defaultBlocks = ref<BlockDefinition[]>([
+  {
+    id: 'builtin:input',
+    version: 1,
+    name: 'Entry Point',
+    description: 'Entry point trigger — every graph requires exactly one.',
+    category: 'Triggers',
+    kind: 'trigger',
+    origin: 'user',
+    inputs: [],
+    outputs: [
+      { id: 'message', name: 'Message', type: 'string', direction: 'output', required: false },
+      { id: 'payload', name: 'Payload', type: 'json', direction: 'output', required: false },
+    ],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:llm-prompt',
+    version: 1,
+    name: 'Prompt Weaver',
+    description: 'Send a message to the LLM provider and return completion.',
+    category: 'LLM',
+    kind: 'llm',
+    origin: 'user',
+    inputs: [
+      { id: 'message', name: 'Message', type: 'string', direction: 'input', required: true },
+      { id: 'system', name: 'System', type: 'string', direction: 'input', required: false },
+    ],
+    outputs: [{ id: 'completion', name: 'Completion', type: 'string', direction: 'output', required: false }],
+    parameters: [
+      { id: 'model', name: 'model', type: 'string', label: 'Model', required: false, defaultValue: 'llama3.2', sensitive: false },
+      { id: 'temperature', name: 'temperature', type: 'number', label: 'Temperature', required: false, defaultValue: 0.7, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:agent',
+    version: 1,
+    name: 'Task Orchestrator',
+    description: 'Autonomous agent that can invoke attached tools.',
+    category: 'Agents',
+    kind: 'agent',
+    origin: 'user',
+    inputs: [
+      { id: 'prompt', name: 'Prompt', type: 'string', direction: 'input', required: true },
+      { id: 'tools', name: 'Tools', type: 'tool', direction: 'input', required: false },
+    ],
+    outputs: [
+      { id: 'answer', name: 'Answer', type: 'string', direction: 'output', required: false },
+      { id: 'trace', name: 'Trace', type: 'json', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'max_iterations', name: 'max_iterations', type: 'number', label: 'Max Iterations', required: false, defaultValue: 8, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:http-request',
+    version: 1,
+    name: 'Web Courier',
+    description: 'Generic HTTP request tool for agents.',
+    category: 'Tools',
+    kind: 'tool',
+    origin: 'user',
+    inputs: [
+      { id: 'url', name: 'URL', type: 'string', direction: 'input', required: true },
+      { id: 'body', name: 'Body', type: 'any', direction: 'input', required: false },
+      { id: 'headers', name: 'Headers', type: 'object', direction: 'input', required: false },
+    ],
+    outputs: [
+      { id: 'response', name: 'Response', type: 'json', direction: 'output', required: false },
+      { id: 'tool', name: 'Tool', type: 'tool', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'method', name: 'method', type: 'select', label: 'Method', required: false, defaultValue: 'GET', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:condition',
+    version: 1,
+    name: 'Logic Gate',
+    description: 'Branch execution based on a boolean condition.',
+    category: 'Control Flow',
+    kind: 'control',
+    origin: 'user',
+    inputs: [{ id: 'value', name: 'Value', type: 'any', direction: 'input', required: true }],
+    outputs: [
+      { id: 'true', name: 'True', type: 'any', direction: 'output', required: false },
+      { id: 'false', name: 'False', type: 'any', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'condition', name: 'condition', type: 'string', label: 'Condition', required: false, defaultValue: '{{ input.count > 5 }}', sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:merge',
+    version: 1,
+    name: 'Stream Merger',
+    description: 'Merge multiple inputs into a single output.',
+    category: 'Control Flow',
+    kind: 'control',
+    origin: 'user',
+    inputs: [{ id: 'inputs', name: 'Inputs', type: 'any', direction: 'input', required: false }],
+    outputs: [{ id: 'merged', name: 'Merged', type: 'any', direction: 'output', required: false }],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:code-js',
+    version: 1,
+    name: 'Script Vault',
+    description: 'Sandboxed JavaScript execution (Developer mode).',
+    category: 'Utilities',
+    kind: 'utility',
+    origin: 'user',
+    inputs: [{ id: 'input', name: 'Input', type: 'any', direction: 'input', required: true }],
+    outputs: [
+      { id: 'output', name: 'Output', type: 'any', direction: 'output', required: false },
+      { id: 'tool', name: 'Tool', type: 'tool', direction: 'output', required: false },
+    ],
+    parameters: [
+      { id: 'code', name: 'code', type: 'code', label: 'Code', required: false, sensitive: false },
+    ],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'builtin:final-answer',
+    version: 1,
+    name: 'Result Terminal',
+    description: 'Terminal output block — returns result to user.',
+    category: 'Outputs',
+    kind: 'output',
+    origin: 'user',
+    inputs: [{ id: 'message', name: 'Message', type: 'string', direction: 'input', required: true }],
+    outputs: [],
+    parameters: [],
+    specJson: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+]);
+
+const selectedCanvasNodeId = computed(() => graphStore.selectedNodeId ?? undefined);
+
+// One rail, one place to look: the canvas owns the workspace, and everything
+// that configures a node or an agent lives in a tab here instead of stacking
+// panels underneath the canvas.
+type InspectorTab = 'node' | 'tools' | 'pins' | 'skills' | 'knowledge' | 'triggers';
+const inspectorTabs: Array<{ id: InspectorTab; label: string }> = [
+  { id: 'node', label: 'Node' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'pins', label: 'Pins' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'triggers', label: 'Triggers' },
+];
+const inspectorTab = ref<InspectorTab>('node');
+
+// Both rails can be dismissed so the canvas can use the full width.
+const showPalette = ref(true);
+const showInspector = ref(true);
 
 onMounted(async () => {
-  init();
   applyDarkMode();
   setupKeyboardShortcuts();
-  await loadTemplateSources();
-  await loadInstalledTemplates();
+  // The canvas resolves node labels/ports from the store, so the palette's
+  // block definitions must be registered there before a drop can render one.
+  graphStore.blocks = defaultBlocks.value;
+  // Dropping a block is a no-op against a null graph; ensure one exists.
+  if (!graphStore.graph) {
+    graphStore.createGraph('Untitled Graph');
+  }
+  seedStarterGraph();
+
+  // Agents, models and templates all live in the Rust backend, which a browser
+  // tab cannot reach. Skipping the startup calls keeps the red "reading
+  // 'invoke'" banner out of a plain `npm run dev` session.
+  if (isDesktopShell()) {
+    init();
+    await loadTemplateSources();
+    await loadInstalledTemplates();
+  } else {
+    console.info('[app] Tauri backend unavailable; skipping agent/template startup');
+  }
+
+  document.addEventListener('click', handleClickOutside);
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+
+// A blank canvas gives no clue where to start, and the graph is invalid until
+// its trigger exists, so a new graph opens with the trigger already placed.
+function seedStarterGraph() {
+  if ((graphStore.graph?.nodes.length ?? 0) > 0) return;
+
+  const trigger = defaultBlocks.value.find((block) => block.kind === 'trigger');
+  if (!trigger) return;
+
+  graphStore.addNode({
+    blockId: trigger.id,
+    blockVersion: trigger.version,
+    position: { x: 120, y: 80 },
+    parameters: {},
+    subGraph: undefined,
+    isCollapsed: false,
+  });
+}
 
 function toggleDarkMode() {
   darkMode.value = !darkMode.value;
@@ -69,23 +321,23 @@ function applyDarkMode() {
   root.setAttribute('data-theme', isDark ? 'dark' : 'light');
 
   if (isDark) {
-    root.style.setProperty('--surface-base', '#111827');
-    root.style.setProperty('--surface-card', '#1F2937');
-    root.style.setProperty('--surface-hover', '#374151');
-    root.style.setProperty('--surface-muted', '#111827');
-    root.style.setProperty('--text-primary', '#F9FAFB');
-    root.style.setProperty('--text-secondary', '#9CA3AF');
+    root.style.setProperty('--surface-base', '#0F172A');
+    root.style.setProperty('--surface-card', '#1E293B');
+    root.style.setProperty('--surface-hover', '#334155');
+    root.style.setProperty('--surface-muted', '#0F172A');
+    root.style.setProperty('--text-primary', '#F8FAFC');
+    root.style.setProperty('--text-secondary', '#CBD5E1');
     root.style.setProperty('--text-muted', '#D1D5DB');
-    root.style.setProperty('--border', '#D1D5DB');
-    root.style.setProperty('--border-focus', '#3B82F6');
-    root.style.setProperty('--border-hover', '#9CA3AF');
-    root.style.setProperty('--primary', '#3B82F6');
-    root.style.setProperty('--primary-hover', '#2563EB');
+    root.style.setProperty('--border', '#475569');
+    root.style.setProperty('--border-focus', '#0EA5E9');
+    root.style.setProperty('--border-hover', '#64748B');
+    root.style.setProperty('--primary', '#0EA5E9');
+    root.style.setProperty('--primary-hover', '#0284C7');
     root.style.setProperty('--primary-fg', '#FFFFFF');
-    root.style.setProperty('--primary-bg', 'rgba(59, 130, 246, 0.15)');
-    root.style.setProperty('--success', '#22C55E');
+    root.style.setProperty('--primary-bg', 'rgba(14, 165, 233, 0.15)');
+    root.style.setProperty('--success', '#10B981');
     root.style.setProperty('--success-fg', '#FFFFFF');
-    root.style.setProperty('--success-bg', 'rgba(34, 197, 94, 0.15)');
+    root.style.setProperty('--success-bg', 'rgba(16, 185, 129, 0.15)');
     root.style.setProperty('--danger', '#EF4444');
     root.style.setProperty('--danger-fg', '#FFFFFF');
     root.style.setProperty('--danger-bg', 'rgba(239, 68, 68, 0.15)');
@@ -96,32 +348,32 @@ function applyDarkMode() {
     root.style.setProperty('--shadow-md', '0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5)');
     root.style.setProperty('--shadow-lg', '0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6)');
   } else {
-    root.style.removeProperty('--surface-base');
-    root.style.removeProperty('--surface-card');
-    root.style.removeProperty('--surface-hover');
-    root.style.removeProperty('--surface-muted');
-    root.style.removeProperty('--text-primary');
-    root.style.removeProperty('--text-secondary');
-    root.style.removeProperty('--text-muted');
-    root.style.removeProperty('--border');
-    root.style.removeProperty('--border-focus');
-    root.style.removeProperty('--border-hover');
-    root.style.removeProperty('--primary');
-    root.style.removeProperty('--primary-hover');
-    root.style.removeProperty('--primary-fg');
-    root.style.removeProperty('--primary-bg');
-    root.style.removeProperty('--success');
-    root.style.removeProperty('--success-fg');
-    root.style.removeProperty('--success-bg');
-    root.style.removeProperty('--danger');
-    root.style.removeProperty('--danger-fg');
-    root.style.removeProperty('--danger-bg');
-    root.style.removeProperty('--warning');
-    root.style.removeProperty('--warning-fg');
-    root.style.removeProperty('--warning-bg');
-    root.style.removeProperty('--shadow-sm');
-    root.style.removeProperty('--shadow-md');
-    root.style.removeProperty('--shadow-lg');
+    root.style.setProperty('--surface-base', '#F8FAFC');
+    root.style.setProperty('--surface-card', '#FFFFFF');
+    root.style.setProperty('--surface-hover', '#E2E8F0');
+    root.style.setProperty('--surface-muted', '#F1F5F9');
+    root.style.setProperty('--text-primary', '#0F172A');
+    root.style.setProperty('--text-secondary', '#334155');
+    root.style.setProperty('--text-muted', '#475569');
+    root.style.setProperty('--border', '#CBD5E1');
+    root.style.setProperty('--border-focus', '#0B63D9');
+    root.style.setProperty('--border-hover', '#94A3B8');
+    root.style.setProperty('--primary', '#0B63D9');
+    root.style.setProperty('--primary-hover', '#084FB3');
+    root.style.setProperty('--primary-fg', '#FFFFFF');
+    root.style.setProperty('--primary-bg', 'rgba(11, 99, 217, 0.12)');
+    root.style.setProperty('--success', '#0F8F5F');
+    root.style.setProperty('--success-fg', '#FFFFFF');
+    root.style.setProperty('--success-bg', 'rgba(15, 143, 95, 0.12)');
+    root.style.setProperty('--danger', '#B42318');
+    root.style.setProperty('--danger-fg', '#FFFFFF');
+    root.style.setProperty('--danger-bg', 'rgba(180, 35, 24, 0.12)');
+    root.style.setProperty('--warning', '#B86A00');
+    root.style.setProperty('--warning-fg', '#FFFFFF');
+    root.style.setProperty('--warning-bg', 'rgba(184, 106, 0, 0.12)');
+    root.style.setProperty('--shadow-sm', '0 1px 2px rgba(15, 23, 42, 0.08)');
+    root.style.setProperty('--shadow-md', '0 6px 16px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.06)');
+    root.style.setProperty('--shadow-lg', '0 18px 40px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(15, 23, 42, 0.08)');
   }
 
   localStorage.setItem('opifex-theme', isDark ? 'dark' : 'light');
@@ -165,6 +417,13 @@ async function handleNewConversation() {
   if (currentAgent.value) {
     await createNewConversation();
   }
+}
+
+function onBlockDragStart(block: BlockDefinition) {
+  // Block drag start is handled by BlockPalette's native drag events.
+  // The canvas drop handler receives the block via dataTransfer, with this as
+  // a fallback in case the webview drops the payload.
+  graphStore.setDraggingBlock(block);
 }
 
 async function handleCreateAgent() {
@@ -328,8 +587,8 @@ async function setupKeyboardShortcuts() {
 </script>
 
 <template>
-  <div class="app-container">
-    <div class="top-bar">
+  <div class="app-container" role="application">
+    <header class="top-bar" role="banner">
       <div class="app-brand">
         <span class="brand-name">Opifex</span>
       </div>
@@ -344,89 +603,212 @@ async function setupKeyboardShortcuts() {
         />
       </div>
 
-      <div class="top-bar-actions">
-        <div class="action-group">
-          <button class="btn-secondary" @click="showProviderDialog = true" title="Configure API keys">
-            API Keys
-          </button>
-          <button class="btn-secondary" @click="showImportDialog = true" title="Import agent">Import</button>
-        </div>
-
-        <div class="action-group">
+      <div class="top-bar-actions" aria-label="Top bar actions">
+        <div class="action-group action-group--primary" aria-label="Primary actions">
           <button class="btn-primary" @click="showCreateDialog = true" title="New agent">
             New Agent
           </button>
+          <div class="action-group action-group--segmented" role="tablist" aria-label="Workspace mode">
+            <button
+              class="btn-segment"
+              :class="viewMode === 'canvas' ? 'is-active' : ''"
+              @click="viewMode = 'canvas'"
+              title="Canvas mode"
+              role="tab"
+              :aria-selected="viewMode === 'canvas'"
+            >
+              Canvas
+            </button>
+            <button
+              class="btn-segment"
+              :class="viewMode === 'oppy' ? 'is-active' : ''"
+              @click="viewMode = 'oppy'"
+              title="Oppy chat mode"
+              role="tab"
+              :aria-selected="viewMode === 'oppy'"
+            >
+              Oppy
+            </button>
+          </div>
         </div>
 
-        <div class="action-group" v-if="currentAgent">
-<button class="btn-secondary" @click="handleGoHome" title="Return to library">
-  Home
-</button>
-        </div>
-
-        <div class="action-group">
-          <button class="btn-text" @click="toggleDarkMode" :title="isDark ? 'Light mode' : 'Dark mode'">
-            {{ isDark ? 'Light' : 'Dark' }}
+        <div class="action-group action-group--utility-menu" ref="utilityMenuRef">
+          <button
+            class="btn-utility btn-utility--menu"
+            @click.stop="toggleUtilityMenu"
+            :aria-expanded="showUtilityMenu"
+            aria-haspopup="true"
+            title="More actions"
+          >
+            ⋯
           </button>
+          <div v-if="showUtilityMenu" class="utility-menu" role="menu">
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(() => { showProviderDialog = true })">
+              API Keys
+            </button>
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(() => { showImportDialog = true })">
+              Import Agent
+            </button>
+            <button v-if="currentAgent" class="utility-menu-item" role="menuitem" @click="handleUtilityAction(handleGoHome)">
+              Return to Library
+            </button>
+            <div class="utility-menu-divider"></div>
+            <button class="utility-menu-item" role="menuitem" @click="handleUtilityAction(toggleDarkMode)">
+              {{ isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </header>
 
     <div class="error-banner" v-if="error && !streaming">{{ error }}</div>
 
-    <div class="panes">
-      <div class="chat-pane-wrapper">
-        <ChatPane
-          v-if="currentAgent"
-          :messages="messages"
-          :streaming="streaming"
-          :streaming-msg-id="streamingMsgId ?? ''"
-          :current-agent-name="currentAgent?.name ?? ''"
-          :interviewing="interviewing"
-          :build-error="buildError"
-          @send="handleSendMessage"
-          @build="confirmBuild"
-          @retry="retryBuild"
-          @new-conversation="handleNewConversation"
-        />
+    <main class="panes" role="main">
+      <div v-if="viewMode === 'canvas'" class="canvas-layout">
+        <aside v-show="showPalette" class="canvas-palette" role="complementary" aria-label="Block palette">
+          <BlockPalette :blocks="defaultBlocks" @block-drag-start="onBlockDragStart" />
+        </aside>
 
-        <AgentLibrary
-          v-if="!currentAgent"
-          :agents="state.agents"
-          :template-sources="templateSources"
-          :installed-templates="installedTemplates"
-          :marketplace-templates="marketplaceTemplates"
-          :marketplace-loading="marketplaceLoading"
-          :selected-source-id="selectedSourceId"
-          @select="handleSelectAgent"
-          @create="() => { showCreateDialog = true }"
-          @rename="startRename"
-          @duplicate="handleDuplicateAgent"
-          @export="handleExportAgent"
-          @delete="handleDeleteAgent"
-          @add-template-source="handleAddTemplateSource"
-          @load-template-sources="loadTemplateSources"
-          @load-marketplace-templates="handleLoadMarketplaceTemplates"
-          @install-marketplace-template="handleInstallMarketplaceTemplate"
-          @load-installed-templates="loadInstalledTemplates"
-        />
+        <section class="canvas-main" role="region" aria-label="Canvas workspace - system design">
+          <header class="canvas-toolbar">
+            <span class="canvas-title">Agent Canvas • Design your agent's logic and tools</span>
+            <div class="canvas-toolbar-actions">
+              <button
+                class="btn-secondary"
+                :class="{ 'is-on': showPalette }"
+                :aria-pressed="showPalette"
+                @click="showPalette = !showPalette"
+                title="Show or hide the block palette"
+              >
+                Palette
+              </button>
+              <button
+                class="btn-secondary"
+                :class="{ 'is-on': showInspector }"
+                :aria-pressed="showInspector"
+                @click="showInspector = !showInspector"
+                title="Show or hide the inspector"
+              >
+                Inspector
+              </button>
+              <button
+                class="btn-secondary"
+                @click="viewMode = 'oppy'"
+                title="Switch to Oppy chat mode"
+              >
+                Switch to Oppy
+              </button>
+            </div>
+          </header>
+          <AgentCanvas />
+          <RunControl :agent-id="currentAgent?.id" />
+        </section>
+
+        <aside
+          v-show="showInspector"
+          class="canvas-inspector"
+          role="complementary"
+          aria-label="Inspector"
+        >
+          <div class="inspector-tabs" role="tablist" aria-label="Inspector panels">
+            <button
+              v-for="tab in inspectorTabs"
+              :key="tab.id"
+              class="inspector-tab"
+              :class="{ 'is-active': inspectorTab === tab.id }"
+              role="tab"
+              :aria-selected="inspectorTab === tab.id"
+              @click="inspectorTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <div class="inspector-body">
+            <NodeInspector v-if="inspectorTab === 'node'" :nodeId="selectedCanvasNodeId" />
+            <AgentToolDrawer
+              v-else-if="inspectorTab === 'tools'"
+              :nodeId="selectedCanvasNodeId"
+            />
+            <PinPanel
+              v-else-if="inspectorTab === 'pins'"
+              :agent-id="currentAgent?.id"
+              :node-id="selectedCanvasNodeId"
+              :port-id="undefined"
+              :value="undefined"
+            />
+            <SkillEditor
+              v-else-if="inspectorTab === 'skills'"
+              :agent-id="currentAgent?.id"
+            />
+            <KnowledgeSourceEditor
+              v-else-if="inspectorTab === 'knowledge'"
+              :agent-id="currentAgent?.id"
+            />
+            <TriggerEditor
+              v-else-if="inspectorTab === 'triggers'"
+              :agent-id="currentAgent?.id"
+            />
+          </div>
+        </aside>
       </div>
 
-      <div class="divider"></div>
+      <div v-else class="oppy-layout">
+        <aside class="chat-pane-wrapper" role="complementary" aria-label="Chat workspace">
+          <ChatPane
+            v-if="currentAgent"
+            :messages="messages"
+            :streaming="streaming"
+            :streaming-msg-id="streamingMsgId ?? ''"
+            :current-agent-name="currentAgent?.name ?? ''"
+            :interviewing="interviewing"
+            :build-error="buildError"
+            @send="handleSendMessage"
+            @build="confirmBuild"
+            @retry="retryBuild"
+            @new-conversation="handleNewConversation"
+          />
 
-      <PlanPane
-        :plan="currentPlan"
-        :agent-name="currentAgent?.name || 'Agent'"
-        :versions="planVersions"
-        :compare-version-id="compareVersionId"
-        :compare-version="compareVersion"
-        @update="handlePlanUpdate"
-        @save-version="handleSaveVersion"
-        @restore-version="handleRestoreVersion"
-        @compare-version="setCompareVersion"
-        @export-agent="handleExportAgent"
-      />
-    </div>
+          <AgentLibrary
+            v-if="!currentAgent"
+            :agents="state.agents"
+            :template-sources="templateSources"
+            :installed-templates="installedTemplates"
+            :marketplace-templates="marketplaceTemplates"
+            :marketplace-loading="marketplaceLoading"
+            :selected-source-id="selectedSourceId"
+            @select="handleSelectAgent"
+            @create="() => { showCreateDialog = true }"
+            @rename="startRename"
+            @duplicate="handleDuplicateAgent"
+            @export="handleExportAgent"
+            @delete="handleDeleteAgent"
+            @add-template-source="handleAddTemplateSource"
+            @load-template-sources="loadTemplateSources"
+            @load-marketplace-templates="handleLoadMarketplaceTemplates"
+            @install-marketplace-template="handleInstallMarketplaceTemplate"
+            @load-installed-templates="loadInstalledTemplates"
+          />
+        </aside>
+
+        <div class="divider"></div>
+
+        <section class="plan-pane-wrapper" role="region" aria-label="Plan review">
+          <PlanPane
+            :plan="currentPlan"
+            :agent-name="currentAgent?.name || 'Agent'"
+            :versions="planVersions"
+            :compare-version-id="compareVersionId"
+            :compare-version="compareVersion"
+            @update="handlePlanUpdate"
+            @save-version="handleSaveVersion"
+            @restore-version="handleRestoreVersion"
+            @compare-version="setCompareVersion"
+            @export-agent="handleExportAgent"
+          />
+        </section>
+      </div>
+    </main>
 
     <div class="modal-overlay" v-if="showCreateDialog" @click.self="showCreateDialog = false">
       <div class="modal" @click.stop>
@@ -519,46 +901,50 @@ async function setupKeyboardShortcuts() {
 </template>
 
 <style scoped>
-/* Opifex design tokens — Operate mode, desktop, Relevance AI inspired */
+:global(body) {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 :root {
   /* Surfaces */
-  --surface-base: #FAFAF9;
-  --surface-card: #FFFFFF;
-  --surface-hover: #F3F4F6;
-  --surface-muted: #F9FAFB;
+  --surface-base: #0B1020;
+  --surface-card: #111827;
+  --surface-elevated: #151E2D;
+  --surface-hover: #1F2937;
+  --surface-muted: #0F172A;
 
   /* Text */
-  --text-primary: #111827;
-  --text-secondary: #6B7280;
-  --text-muted: #9CA3AF;
+  --text-primary: #F3F7FF;
+  --text-secondary: #B4C0D2;
+  --text-tertiary: #7C8AA5;
+  --text-muted: #94A3B8;
 
   /* Border */
-  --border: #000000;
-  --border-focus: #2563EB;
-  --border-hover: #374151;
+  --border: #243247;
+  --border-focus: #3B82F6;
+  --border-hover: #334155;
 
   /* Interactive */
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
+  --primary: #3B82F6;
+  --primary-hover: #2563EB;
   --primary-fg: #FFFFFF;
-  --primary-bg: rgba(37, 99, 235, 0.10);
+  --primary-bg: rgba(59, 130, 246, 0.15);
 
-  --success: #16A34A;
+  --success: #22C55E;
   --success-fg: #FFFFFF;
-  --success-bg: rgba(22, 163, 74, 0.10);
+  --success-bg: rgba(34, 197, 94, 0.15);
 
-  --danger: #DC2626;
+  --danger: #EF4444;
   --danger-fg: #FFFFFF;
-  --danger-bg: rgba(220, 38, 38, 0.10);
+  --danger-bg: rgba(239, 68, 68, 0.15);
 
-  --warning: #CA8A04;
+  --warning: #F59E0B;
   --warning-fg: #FFFFFF;
-  --warning-bg: rgba(202, 138, 4, 0.10);
+  --warning-bg: rgba(245, 158, 11, 0.15);
 
   /* Shadows — soft, offset shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.6), 0 8px 18px rgba(0, 0, 0, 0.5);
 
   /* Radius */
   --radius-sm: 6px;
@@ -652,9 +1038,10 @@ body {
   padding: 0 var(--space-6);
   background: var(--surface-card);
   border-bottom: 1px solid var(--border);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
@@ -674,53 +1061,124 @@ body {
 .top-bar-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .top-bar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  margin-left: -var(--space-8);
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .action-group {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
+  background: var(--surface-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.action-group--primary {
+  background: var(--surface-base);
+}
+
+.action-group--segmented {
+  padding: 0;
+  overflow: hidden;
+  margin-left: var(--space-1);
+}
+
+.action-group--utility-menu {
+  position: relative;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.btn-utility,
+.btn-segment,
+.btn-primary {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--type-sm);
+  line-height: 1.2;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+}
+
+.btn-secondary,
+.btn-utility {
+  padding: 0.5rem 0.8rem;
+  background: transparent;
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.btn-secondary:hover,
+.btn-utility:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
 }
 
 .btn-secondary {
-  padding: var(--space-3) var(--space-8);
-  font-size: var(--type-sm);
-  background: var(--surface-card);
-  color: var(--text-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
+  background: var(--surface-card);
+  color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
+.btn-utility--theme {
+  min-width: 4.5rem;
+}
+
+.btn-utility--menu {
+  padding: 0.5rem 0.7rem;
+  font-size: var(--type-lg);
+  line-height: 1;
+  min-width: 2.25rem;
+}
+
+.btn-segment {
+  padding: 0.5rem 0.85rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 0;
+  border: none;
+  min-width: 4.75rem;
+}
+
+.btn-segment + .btn-segment {
+  border-left: 1px solid var(--border);
+}
+
+.btn-segment.is-active {
+  background: var(--primary-bg);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px rgba(11, 99, 217, 0.12);
 }
 
 .btn-primary {
-  padding: var(--space-3) var(--space-10);
-  font-size: var(--type-sm);
+  padding: 0.72rem 1.15rem;
   background: var(--primary);
   color: var(--primary-fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
+  border-color: var(--primary);
+  box-shadow: 0 6px 16px rgba(11, 99, 217, 0.22);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -729,8 +1187,47 @@ body {
 
 .btn-primary:disabled {
   background: var(--border-hover);
+  border-color: var(--border-hover);
   color: var(--text-muted);
+  box-shadow: none;
   cursor: not-allowed;
+}
+
+.utility-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 180px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+.utility-menu-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.utility-menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.utility-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
 }
 
 .btn-text {
@@ -748,6 +1245,13 @@ body {
 .btn-text:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+.top-bar .btn-utility:focus-visible,
+.top-bar .btn-segment:focus-visible,
+.top-bar .btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 99, 217, 0.22);
 }
 
 .error-banner {
@@ -783,6 +1287,15 @@ body {
   width: 1px;
   background: var(--border);
   flex-shrink: 0;
+}
+
+.plan-pane-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-card);
+  overflow: hidden;
 }
 
 .modal-overlay {
@@ -939,5 +1452,202 @@ body {
 
 .btn-save-key:hover {
   background: var(--primary-hover);
+}
+
+/* Canvas mode layout */
+.canvas-layout {
+  position: relative;
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.canvas-palette {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+.canvas-toolbar {
+  height: 48px;
+  padding: 0 var(--space-6);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.canvas-title {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.canvas-toolbar-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.canvas-inspector {
+  width: 340px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inspector-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.inspector-tab {
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: var(--type-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.inspector-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.inspector-tab.is-active {
+  color: var(--primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-toolbar-actions .btn-secondary.is-on {
+  color: var(--primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.canvas-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-toolbar-actions {
+  flex-shrink: 0;
+}
+
+/* In a narrow window the rails float over the canvas instead of squeezing it.
+   The default Tauri window is 800x600, where two fixed rails would leave the
+   canvas with almost no width. */
+@media (max-width: 1240px) {
+  .canvas-palette,
+  .canvas-inspector {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
+  }
+
+  .canvas-palette {
+    left: 0;
+  }
+
+  .canvas-inspector {
+    right: 0;
+  }
+
+  .canvas-main {
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .canvas-palette {
+    width: 260px;
+  }
+
+  .canvas-inspector {
+    width: 300px;
+  }
+
+  .canvas-title {
+    display: none;
+  }
+}
+
+.btn-active {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+:global([data-theme='light'] .bg-slate-950),
+:global([data-theme='light'] .bg-slate-900),
+:global([data-theme='light'] .bg-slate-800),
+:global([data-theme='light'] .bg-slate-800\/50),
+:global([data-theme='light'] .bg-slate-700),
+:global([data-theme='light'] .bg-slate-700\/50) {
+  background-color: var(--surface-card) !important;
+}
+
+:global([data-theme='light'] .text-slate-200),
+:global([data-theme='light'] .text-slate-300),
+:global([data-theme='light'] .text-slate-400),
+:global([data-theme='light'] .text-slate-500),
+:global([data-theme='light'] .text-slate-600) {
+  color: var(--text-secondary) !important;
+}
+
+:global([data-theme='light'] .text-slate-100),
+:global([data-theme='light'] .text-slate-50),
+:global([data-theme='light'] .text-slate-200) {
+  color: var(--text-primary) !important;
+}
+
+:global([data-theme='light'] .border-slate-800),
+:global([data-theme='light'] .border-slate-700),
+:global([data-theme='light'] .border-slate-700\/50),
+:global([data-theme='light'] .border-slate-600) {
+  border-color: var(--border) !important;
+}
+
+:global([data-theme='light'] .hover\:bg-slate-800:hover) {
+  background-color: var(--surface-hover) !important;
 }
 </style>

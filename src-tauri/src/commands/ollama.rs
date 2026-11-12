@@ -91,6 +91,7 @@ impl std::str::FromStr for LlmProvider {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize)]
 pub struct SetProviderInput {
     pub provider: String,

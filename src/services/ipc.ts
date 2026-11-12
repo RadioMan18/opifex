@@ -20,6 +20,68 @@ import type {
   UpdateAgentInput,
 } from '@/types/agent';
 
+// Outside the desktop shell Tauri injects nothing, so every command rejects
+// with "Cannot read properties of undefined (reading 'invoke')". Startup code
+// checks this before touching the backend instead of showing that as an error.
+export function isDesktopShell(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+// Connector IPC types (snake_case to match Rust backend)
+interface CreateConnectorInput {
+  name: string;
+  category: string;
+  account_selection: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+}
+
+interface UpdateConnectorInput {
+  id: string;
+  name?: string;
+  category?: string;
+  account_selection?: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management?: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+}
+
+interface GrantConnectorInput {
+  agent_id: string;
+  connector_id: string;
+  account_id?: string;
+}
+
+
+
+interface ConnectorBlock {
+  id: string;
+  name: string;
+  category: string;
+  account_selection: 'personal-default' | 'specific-account' | 'team-default';
+  tool_management: {
+    connector_id: string;
+    preset: 'always-allow' | 'ask-each-time' | 'ask-for-writes-deletes' | 'custom';
+    overrides: { tool_id: string; mode: 'allow' | 'ask' | 'deny' }[];
+  };
+  is_builtin: boolean;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ConnectorGrant {
+  agent_id: string;
+  connector_id: string;
+  account_id: string | null;
+  granted_at: string;
+}
+
 export async function createAgent(input: CreateAgentInput): Promise<Agent> {
   return invoke('create_agent', { input });
 }
@@ -238,4 +300,298 @@ export async function installTemplate(input: { templateId: string; version: stri
 
 export async function listInstalledTemplates(): Promise<InstalledTemplate[]> {
   return invoke('list_installed_templates');
+}
+
+// Connector IPC
+export async function createConnector(input: CreateConnectorInput): Promise<ConnectorBlock> {
+  return invoke('create_connector', { input });
+}
+
+export async function getConnector(id: string): Promise<ConnectorBlock | null> {
+  return invoke('get_connector', { id });
+}
+
+export async function listConnectors(category?: string): Promise<ConnectorBlock[]> {
+  return invoke('list_connectors', { category });
+}
+
+export async function updateConnector(input: UpdateConnectorInput): Promise<ConnectorBlock> {
+  return invoke('update_connector', { input });
+}
+
+export async function deleteConnector(id: string): Promise<boolean> {
+  return invoke('delete_connector', { id });
+}
+
+export async function grantConnector(input: GrantConnectorInput): Promise<ConnectorGrant> {
+  return invoke('grant_connector', { input });
+}
+
+export async function revokeConnector(agentId: string, connectorId: string): Promise<boolean> {
+  return invoke('revoke_connector', { agent_id: agentId, connector_id: connectorId });
+}
+
+export async function listConnectorGrants(agentId: string): Promise<ConnectorGrant[]> {
+  return invoke('list_connector_grants', { agent_id: agentId });
+}
+
+export async function checkToolApproval(
+  toolId: string,
+  connectorId: string,
+  preset: string,
+  overrides?: { toolId: string; mode: 'allow' | 'ask' | 'deny' }[],
+): Promise<{ allowed: boolean; requiresApproval: boolean }> {
+  const result = await invoke<{ allowed: boolean; requires_approval: boolean }>(
+    'check_tool_approval',
+    { tool_id: toolId, connector_id: connectorId, preset, overrides },
+  );
+  return { allowed: result.allowed, requiresApproval: result.requires_approval };
+}
+
+// Run IPC types (snake_case to match Rust backend)
+interface RunAgentGraphInput {
+  agent_id: string;
+  mode: 'live' | 'mock';
+}
+
+interface PinDataInput {
+  agent_id: string;
+  node_id: string;
+  port_id: string;
+  value: any;
+}
+
+interface UnpinDataInput {
+  agent_id: string;
+  node_id: string;
+  port_id: string;
+}
+
+interface GetPinnedDataInput {
+  agent_id: string;
+}
+
+interface PinnedDataDto {
+  node_id: string;
+  port_id: string;
+  value: any;
+  created_at: string;
+}
+
+interface RunStatusDto {
+  run_id: string;
+  agent_id: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  node_count: number;
+}
+
+interface Run {
+  id: string;
+  graph_id: string;
+  graph_hash: string;
+  mode: string;
+  scope_json: any;
+  trigger_json: any | null;
+  status: string;
+  error_json: any | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
+// Run IPC
+export async function runAgentGraph(input: RunAgentGraphInput): Promise<Run> {
+  return invoke('run_agent_graph', { input });
+}
+
+export async function pinAgentData(input: PinDataInput): Promise<void> {
+  return invoke('pin_agent_data', { input });
+}
+
+export async function unpinAgentData(input: UnpinDataInput): Promise<void> {
+  return invoke('unpin_agent_data', { input });
+}
+
+export async function getPinnedData(input: GetPinnedDataInput): Promise<PinnedDataDto[]> {
+  return invoke('get_pinned_data', { input });
+}
+
+export async function getRunStatus(input: GetPinnedDataInput): Promise<RunStatusDto | null> {
+  return invoke('get_run_status', { input });
+}
+
+// Skill IPC (snake_case to match Rust backend)
+interface CreateSkillInput {
+  agent_id: string;
+  name: string;
+  description?: string;
+  kind: 'create-with-ai' | 'upload-files' | 'write-instructions' | 'add-existing';
+  ai_editing_enabled: boolean;
+  instructions: string;
+}
+
+interface SkillDto {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  ai_editing_enabled: boolean;
+  instructions: string;
+  attached_to: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSkill(input: CreateSkillInput): Promise<SkillDto> {
+  return invoke('create_skill', { input });
+}
+
+export async function listSkills(input: ListSkillsInput): Promise<SkillDto[]> {
+  return invoke('list_skills', { input });
+}
+
+interface ListSkillsInput {
+  agent_id: string;
+}
+
+// Knowledge Source IPC
+interface CreateKnowledgeSourceInput {
+  agent_id: string;
+  name: string;
+  provider: string;
+  source_ids: string[];
+  citations_enabled: boolean;
+}
+
+interface KnowledgeSourceDto {
+  id: string;
+  name: string;
+  provider: string;
+  source_ids: string[];
+  citations_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createKnowledgeSource(input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceDto> {
+  return invoke('create_knowledge_source', { input });
+}
+
+export async function listKnowledgeSources(input: ListKnowledgeSourcesInput): Promise<KnowledgeSourceDto[]> {
+  return invoke('list_knowledge_sources', { input });
+}
+
+interface ListKnowledgeSourcesInput {
+  agent_id: string;
+}
+
+// Trigger IPC
+interface CreateTriggerInput {
+  agent_id: string;
+  kind: 'app-trigger' | 'webhook' | 'scheduled' | 'one-time' | 'create-with-ai';
+  config: any;
+  ai_managed: boolean;
+}
+
+interface TriggerDto {
+  id: string;
+  kind: string;
+  config: any;
+  ai_managed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createTrigger(input: CreateTriggerInput): Promise<TriggerDto> {
+  return invoke('create_trigger', { input });
+}
+
+export async function listTriggers(input: ListTriggersInput): Promise<TriggerDto[]> {
+  return invoke('list_triggers', { input });
+}
+
+interface ListTriggersInput {
+  agent_id: string;
+}
+
+// Subagent IPC
+interface CreateSubagentInput {
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+}
+
+interface SubagentDto {
+  id: string;
+  agent_id: string;
+  task: string;
+  max_concurrent: number;
+  wait_for_results: boolean;
+  depth_limit: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSubagent(input: CreateSubagentInput): Promise<SubagentDto> {
+  return invoke('create_subagent', { input });
+}
+
+export async function listSubagents(input: ListSubagentsInput): Promise<SubagentDto[]> {
+  return invoke('list_subagents', { input });
+}
+
+interface ListSubagentsInput {
+  agent_id: string;
+}
+
+// Ability IPC
+interface ListAbilitiesInput {
+  agent_id: string;
+}
+
+interface AbilityDto {
+  kind: string;
+  enabled: boolean;
+}
+
+export async function listAbilities(input: ListAbilitiesInput): Promise<AbilityDto[]> {
+  return invoke('list_abilities', { input });
+}
+
+export async function toggleAbility(
+  agent_id: string,
+  ability_id: string,
+  enabled: boolean,
+): Promise<void> {
+  return invoke('toggle_ability', { agent_id, ability_id, enabled });
+}
+
+// Channel IPC
+interface CreateChannelInput {
+  agent_id: string;
+  kind: string;
+  config: any;
+}
+
+interface ChannelDto {
+  id: string;
+  kind: string;
+  config: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createChannel(input: CreateChannelInput): Promise<ChannelDto> {
+  return invoke('create_channel', { input });
+}
+
+export async function listChannels(input: ListChannelsInput): Promise<ChannelDto[]> {
+  return invoke('list_channels', { input });
+}
+
+interface ListChannelsInput {
+  agent_id: string;
 }

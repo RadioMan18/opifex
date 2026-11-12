@@ -1,0 +1,22 @@
+[
+  { "source_type": "string", "target_type": "string", "expected_result": true },
+  { "source_type": "number", "target_type": "number", "expected_result": true },
+  { "source_type": "boolean", "target_type": "boolean", "expected_result": true },
+  { "source_type": "object", "target_type": "object", "expected_result": true },
+  { "source_type": "message", "target_type": "message", "expected_result": true },
+  { "source_type": "llm", "target_type": "llm", "expected_result": true },
+  { "source_type": "tool", "target_type": "tool", "expected_result": true },
+  { "source_type": "json", "target_type": "json", "expected_result": true },
+  { "source_type": "any", "target_type": "string", "expected_result": true },
+  { "source_type": "string", "target_type": "any", "expected_result": true },
+  { "source_type": "any", "target_type": "any", "expected_result": true },
+  { "source_type": "string", "target_type": "number", "expected_result": false },
+  { "source_type": "number", "target_type": "string", "expected_result": false },
+  { "source_type": "string", "target_type": "boolean", "expected_result": false },
+  { "source_type": "boolean", "target_type": "number", "expected_result": false },
+  { "source_type": "llm", "target_type": "string", "expected_result": false },
+  { "source_type": "string", "target_type": "llm", "expected_result": false },
+  { "source_type": "tool", "target_type": "json", "expected_result": false },
+  { "source_type": "message", "target_type": "tool", "expected_result": false },
+  { "source_type": "json", "target_type": "number", "expected_result": false }
+]

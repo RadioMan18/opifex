@@ -1,11 +1,13 @@
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [
     vue(),
+    tailwindcss(),
   ],
   resolve: {
     alias: {
@@ -16,7 +18,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      ignored: ['**/src-tauri/target/**'],
+      ignored: ['**/node_modules/**', '**/.git/**', '**/target/**', '**/src-tauri/**'],
     },
   },
   build: {

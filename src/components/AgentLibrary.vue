@@ -44,54 +44,71 @@ const isInstalled = (templateId: string, version: string) => {
 <template>
   <div class="agent-library">
     <div class="library-header">
-      <h3>Agent Library</h3>
-      <button class="btn-new" @click="props.onCreate">New Agent</button>
-    </div>
-
-    <div class="library-section">
-      <h4>Starter Agents</h4>
-      <div class="agent-list">
-        <div
-          v-for="agent of starterAgents"
-          :key="agent.id"
-          class="agent-item"
-          @click="props.onSelect(agent.id)"
-        >
-          <div class="agent-info">
-            <div class="agent-name">{{ agent.name }}</div>
-            <div class="agent-desc">{{ agent.description }}</div>
-          </div>
-          <div class="agent-badge">Starter</div>
-          <button class="btn-clone" title="Clone starter" @click.stop="props.onDuplicate(agent.id)">
-            Clone
-          </button>
-        </div>
+      <div>
+        <h3>Agent Library</h3>
+        <p class="library-subtitle">Create, manage, and explore agents</p>
       </div>
+      <button class="btn-new" @click="props.onCreate">Create Agent</button>
     </div>
 
-    <div class="library-section" v-if="userAgents.length > 0">
-      <h4>Your Agents</h4>
-      <div class="agent-list">
-        <div
-          v-for="agent of userAgents"
-          :key="agent.id"
-          class="agent-item"
-          @click="props.onSelect(agent.id)"
-        >
-          <div class="agent-info">
-            <div class="agent-name">{{ agent.name }}</div>
-            <div class="agent-desc">{{ agent.description }}</div>
-          </div>
-          <div class="agent-actions">
-            <button class="btn-clone" title="Duplicate" @click.stop="props.onDuplicate(agent.id)">
+    <div v-if="props.agents.length === 0" class="empty-library">
+      <div class="empty-library-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path>
+        </svg>
+      </div>
+      <h4 class="empty-library-title">No agents yet</h4>
+      <p class="empty-library-desc">Create your first agent to start building intelligent workflows with Oppy.</p>
+      <button class="btn-new-large" @click="props.onCreate">Create Your First Agent</button>
+    </div>
+
+    <div v-else>
+      <div class="library-section">
+        <h4>Starter Agents</h4>
+        <div class="agent-list">
+          <div
+            v-for="agent of starterAgents"
+            :key="agent.id"
+            class="agent-item"
+            @click="props.onSelect(agent.id)"
+          >
+            <div class="agent-info">
+              <div class="agent-name">{{ agent.name }}</div>
+              <div class="agent-desc">{{ agent.description }}</div>
+            </div>
+            <div class="agent-badge">Starter</div>
+            <button class="btn-clone" title="Clone starter" @click.stop="props.onDuplicate(agent.id)">
               Clone
             </button>
-            <button class="btn-export" title="Export" @click.stop="props.onExport(agent.id)">
-              Export
-            </button>
-            <button class="btn-delete" title="Delete" @click.stop="props.onDelete(agent.id)">
-              Delete
-            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="library-section" v-if="userAgents.length > 0">
+        <h4>Your Agents</h4>
+        <div class="agent-list">
+          <div
+            v-for="agent of userAgents"
+            :key="agent.id"
+            class="agent-item"
+            @click="props.onSelect(agent.id)"
+          >
+            <div class="agent-info">
+              <div class="agent-name">{{ agent.name }}</div>
+              <div class="agent-desc">{{ agent.description }}</div>
+            </div>
+            <div class="agent-actions">
+              <button class="btn-clone" title="Duplicate" @click.stop="props.onDuplicate(agent.id)">
+                Clone
+              </button>
+              <button class="btn-export" title="Export" @click.stop="props.onExport(agent.id)">
+                Export
+              </button>
+              <button class="btn-delete" title="Delete" @click.stop="props.onDelete(agent.id)">
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       </div>

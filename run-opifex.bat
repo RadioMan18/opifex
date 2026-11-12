@@ -23,9 +23,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/3] Cleaning previous build...
-cargo clean >nul 2>&1
-npm run build
+echo [1/3] Building frontend...
+call npm run build
 if errorlevel 1 (
     echo ERROR: Frontend build failed.
     pause
@@ -34,16 +33,18 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Building Tauri application...
-cargo tauri build
+cd /d "%~dp0src-tauri"
+call cargo tauri build --no-bundle
 if errorlevel 1 (
     echo ERROR: Tauri build failed.
     pause
     exit /b 1
 )
+cd /d "%~dp0"
 
 echo.
 echo [3/3] Launching Opifex...
-set "APP_DIR=%~dp0src-tauri\target\release"
+set "APP_DIR=%~dp0target\release"
 set "APP_EXE=%APP_DIR%\app.exe"
 if not exist "%APP_EXE%" (
     echo ERROR: Built application not found at:

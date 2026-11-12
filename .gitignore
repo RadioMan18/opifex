@@ -8,6 +8,7 @@ dist/
 dist-ssr/
 src-tauri/target/
 src-tauri/gen/
+target/
 *.local
 
 # Environment
@@ -38,3 +39,6 @@ src-tauri/target/release/bundle/
 .turbo/
 marketing.md
 FEATURE_SPEC_V1_1_0.md
+
+# v2.0.0 planning (not for commit yet)
+# plans/
